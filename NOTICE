@@ -1,0 +1,13 @@
+pageturn
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Bundled third-party components:
+
+- epub.js (BSD-2-Clause), https://github.com/futurepress/epub.js
+- JSZip (MIT), https://github.com/Stuk/jszip
+- Newsreader typeface (SIL Open Font License 1.1), Production Type
+- Manrope typeface (SIL Open Font License 1.1), Mikhail Sharanda
+
+The fonts in assets/fonts are latin subsets, converted to static TTF for the
+app interface and kept as WOFF2 for the reader page. They remain under the
+SIL Open Font License 1.1: https://openfontlicense.org

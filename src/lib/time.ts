@@ -1,0 +1,43 @@
+// Time-left estimates and the automatic night/paper choice.
+
+/** Characters read per minute: about 230 words a minute of English prose. */
+export const CHARS_PER_MINUTE = 1300;
+
+export function minutesFor(chars: number, charsPerMinute = CHARS_PER_MINUTE): number {
+  return Math.max(0, Math.round(chars / charsPerMinute));
+}
+
+export function formatMinutes(minutes: number): string {
+  if (minutes < 1) return 'under a minute';
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+export type ThemeName = 'night' | 'paper';
+export type ThemeMode = 'auto' | ThemeName;
+
+/** Night from 7 pm to 7 am local time, warm paper through the day. */
+export function autoTheme(now: Date): ThemeName {
+  const h = now.getHours();
+  return h >= 19 || h < 7 ? 'night' : 'paper';
+}
+
+export function resolveTheme(mode: ThemeMode, now: Date): ThemeName {
+  return mode === 'auto' ? autoTheme(now) : mode;
+}
+
+/** Hours away after which opening the app shows the resume card. */
+export const RESUME_GAP_MS = 4 * 60 * 60 * 1000;
+
+export function shouldShowResume(lastReadAt: number | null, now: number): boolean {
+  return lastReadAt !== null && now - lastReadAt >= RESUME_GAP_MS;
+}
+
+/** Split a sentence so its last few words can be set in the accent colour. */
+export function splitTail(sentence: string, words = 3): [string, string] {
+  const parts = sentence.trim().split(/\s+/);
+  if (parts.length <= words) return ['', parts.join(' ')];
+  return [parts.slice(0, -words).join(' ') + ' ', parts.slice(-words).join(' ')];
+}
