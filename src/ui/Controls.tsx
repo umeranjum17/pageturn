@@ -13,7 +13,9 @@ interface Props {
   palette: Palette;
   prefs: Prefs;
   brightness: number;
+  brightnessFollowsSystem: boolean;
   onBrightness(v: number): void;
+  onSystemBrightness(): void;
   onPrefs(p: Prefs): void;
   onContents(): void;
   onRecap(): void;
@@ -23,7 +25,7 @@ interface Props {
 export const FONT_MIN = 15;
 export const FONT_MAX = 32;
 const LINE_HEIGHTS: [string, number][] = [['Snug', 1.45], ['Even', 1.6], ['Airy', 1.8]];
-const MARGINS: [string, number][] = [['Narrow', 12], ['Medium', 20], ['Wide', 34]];
+const MARGINS: [string, number][] = [['Slim', 12], ['Mid', 20], ['Wide', 34]];
 
 function Choice<T>({
   options,
@@ -85,6 +87,20 @@ export default function Controls(p: Props) {
         </Pressable>
       </View>
       <Slider label="Brightness" value={p.brightness} min={0.02} max={1} palette={palette} onChange={p.onBrightness} />
+      <Pressable
+        onPress={p.onSystemBrightness}
+        disabled={p.brightnessFollowsSystem}
+        style={styles.system}
+        accessibilityRole="button"
+        accessibilityState={{ selected: p.brightnessFollowsSystem }}
+      >
+        <Text
+          maxFontSizeMultiplier={TEXT_SCALE_MAX}
+          style={[styles.small, { color: p.brightnessFollowsSystem ? palette.secondary : palette.prose }]}
+        >
+          {p.brightnessFollowsSystem ? 'Using phone brightness' : 'Use phone brightness'}
+        </Text>
+      </Pressable>
       <Row label="Text size" palette={palette}>
         <View style={styles.group}>
           <Pressable
@@ -140,6 +156,7 @@ export default function Controls(p: Props) {
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 },
+  system: { minHeight: 36, justifyContent: 'center', marginBottom: 4 },
   done: { minHeight: TAP - 8, justifyContent: 'center', paddingLeft: 16 },
   // Caption above, choices across the full width: fits narrow screens and large system text.
   row: { paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth * 2, gap: 6 },

@@ -22,6 +22,8 @@ import { FONTS, PALETTES, TAP, TEXT_SCALE_MAX } from './src/ui/tokens';
 const TICK_MS = 15_000;
 const ACTIVE_WINDOW_MS = 90_000;
 const AWAKE_WINDOW_MS = 3 * 60_000;
+const OPEN_TIMEOUT_MS = 45_000;
+const UNREADABLE = 'This book could not be opened.';
 // The bottom strip stays one calm line each, even at large system text sizes.
 const STRIP_SCALE_MAX = 1.15;
 
@@ -66,6 +68,9 @@ function Reader() {
   const awake = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bookRef = useRef<string | null>(currentId);
+  // Which book the engine has actually opened, and a watchdog for books it never opens.
+  const openedRef = useRef<string | null>(null);
+  const openWatch = useRef<ReturnType<typeof setTimeout> | null>(null);
   bookRef.current = currentId;
 
   const book = useMemo(() => books.find((b) => b.id === currentId) ?? null, [books, currentId]);
@@ -100,10 +105,15 @@ function Reader() {
     try {
       const base64 = await readBookBase64(b.path);
       if (bookRef.current !== id) return;
+      openedRef.current = null;
+      if (openWatch.current) clearTimeout(openWatch.current);
+      openWatch.current = setTimeout(() => {
+        if (bookRef.current === id && openedRef.current !== id) setError(UNREADABLE);
+      }, OPEN_TIMEOUT_MS);
       reader.current?.open({ bookId: id, base64, cfi: b.cfi, locations: b.locations, style: styleRef.current });
       db.markOpened(id, Date.now());
     } catch {
-      setError('This book could not be opened.');
+      setError(UNREADABLE);
     }
   }, []);
 
@@ -166,16 +176,12 @@ function Reader() {
 
   // Coming back after a long gap shows the resume card.
   useEffect(() => {
-    let leftAt = Date.now();
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') {
-        setNow(new Date());
-        if (bookRef.current && shouldShowResume(Math.max(db.getLastReadAt() ?? 0, leftAt), Date.now())) {
-          refreshBooks();
-          setResume(true);
-        }
-      } else {
-        leftAt = Date.now();
+      if (s !== 'active') return;
+      setNow(new Date());
+      if (bookRef.current && shouldShowResume(db.getLastReadAt(), Date.now())) {
+        refreshBooks();
+        setResume(true);
       }
     });
     return () => sub.remove();
@@ -189,6 +195,9 @@ function Reader() {
           break;
         case 'opened':
           if (msg.bookId !== bookRef.current) return;
+          openedRef.current = msg.bookId;
+          if (openWatch.current) clearTimeout(openWatch.current);
+          setError(null);
           db.saveMetadata(msg.bookId, msg.title, msg.author, msg.cover);
           setToc(msg.toc);
           refreshBooks();
@@ -203,6 +212,7 @@ function Reader() {
           if (saveTimer.current) clearTimeout(saveTimer.current);
           saveTimer.current = setTimeout(() => {
             db.savePosition(msg.bookId, msg);
+            db.setLastReadAt(Date.now());
           }, 400);
           break;
         }
@@ -214,7 +224,9 @@ function Reader() {
           setControls((v) => !v);
           break;
         case 'error':
-          // Book quirks surface here; the reader keeps going.
+          // Before the book opens, an error means it never will. After that,
+          // book quirks surface here and the reader keeps going.
+          if (bookRef.current && openedRef.current !== bookRef.current) setError(UNREADABLE);
           break;
       }
     },
@@ -234,6 +246,14 @@ function Reader() {
     },
     [updatePrefs],
   );
+
+  const onSystemBrightness = useCallback(() => {
+    Brightness.restoreSystemBrightnessAsync()
+      .then(() => Brightness.getBrightnessAsync())
+      .then(setBrightness)
+      .catch(() => undefined);
+    updatePrefs({ ...db.getPrefs(), brightness: null });
+  }, [updatePrefs]);
 
   const openBook = useCallback(
     (id: string) => {
@@ -349,6 +369,8 @@ function Reader() {
         prefs={prefs}
         brightness={brightness}
         onBrightness={onBrightness}
+        brightnessFollowsSystem={prefs.brightness === null}
+        onSystemBrightness={onSystemBrightness}
         onPrefs={updatePrefs}
         onContents={() => {
           setControls(false);
@@ -410,14 +432,14 @@ const styles = StyleSheet.create({
   },
   page: { flex: 1 },
   errorBox: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  colophon: { paddingHorizontal: 32, paddingTop: 10 },
+  colophon: { paddingHorizontal: 24, paddingTop: 10 },
   progress: { height: 1, marginBottom: 10, overflow: 'hidden' },
   meta: { fontFamily: FONTS.ui, fontSize: 13, lineHeight: 19 },
   bottomLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TAP },
   streak: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: TAP, minWidth: 32 },
   streakDot: { width: 6, height: 6, borderRadius: 3 },
   streakText: { fontFamily: FONTS.uiStrong, fontSize: 13 },
-  chapterMeta: { flex: 1, textAlign: 'center', paddingHorizontal: 8 },
+  chapterMeta: { flex: 1, textAlign: 'center', paddingHorizontal: 4 },
   libraryLink: { minHeight: TAP, minWidth: TAP, alignItems: 'flex-end', justifyContent: 'center' },
   first: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, gap: 20 },
   wordmark: { fontFamily: FONTS.book, fontSize: 40, letterSpacing: -1.6 },

@@ -66,7 +66,9 @@
     return fontFaces() +
       'html,body{background:transparent!important;color:' + s.prose + '!important;height:auto!important;' +
       'min-height:0!important;overflow:visible!important;columns:auto!important;column-count:auto!important;' +
-      'writing-mode:horizontal-tb!important;-webkit-text-size-adjust:none!important}' +
+      'writing-mode:horizontal-tb!important;-webkit-text-size-adjust:none!important;position:static!important;' +
+      'display:block!important;transform:none!important;filter:none!important;opacity:1!important;' +
+      'visibility:visible!important;zoom:1!important}' +
       'html{font-size:' + s.fontSize + 'px!important}' +
       'body{margin:0 auto!important;padding:0 ' + s.margin + 'px!important;max-width:36em!important;' +
       "font-family:'PT Newsreader',Georgia,'Noto Serif',serif!important;font-size:" + s.fontSize + 'px!important;' +
@@ -78,8 +80,10 @@
       'font-family:inherit!important;letter-spacing:normal!important;word-spacing:normal!important;' +
       'text-shadow:none!important;box-shadow:none!important}' +
       'p,li,dd,dt,blockquote,td,th,div,span{font-size:inherit!important}' +
-      'p{margin:0 0 .35em!important;text-indent:0!important;text-align:' + align + '!important}' +
-      'p+p{text-indent:1.1em!important}' +
+      // Book-style first-line indent, except where a paragraph opens a section.
+      'p{margin:0 0 .35em!important;text-indent:1.1em!important;text-align:' + align + '!important}' +
+      'p:first-child,h1+p,h2+p,h3+p,h4+p,h5+p,h6+p,hr+p,blockquote+p,div+p,table+p,figure+p,' +
+      'img+p,p:has(> img:only-child),[align=center] p,p[align=center]{text-indent:0!important}' +
       'h1,h2,h3,h4,h5,h6{text-align:center!important;font-weight:400!important;line-height:1.25!important;' +
       'margin:2.2em 0 1.2em!important;text-indent:0!important;letter-spacing:.02em!important}' +
       'h1{font-size:1.45em!important}h2{font-size:1.3em!important}h3,h4,h5,h6{font-size:1.1em!important}' +
@@ -194,15 +198,15 @@
       if (!range) return null;
       var node = range.startContainer;
       var el = node.nodeType === 1 ? node : node.parentElement;
-      var block = el && el.closest ? el.closest('p,li,blockquote,div,h1,h2,h3,h4,h5,h6,dd,td') : el;
+      var block = (el && el.closest && el.closest('p,li,blockquote,div,h1,h2,h3,h4,h5,h6,dd,td')) ||
+        el || null;
       if (!block) return null;
       var pre = block.ownerDocument.createRange();
       pre.setStart(block, 0);
       pre.setEnd(range.startContainer, range.startOffset);
-      var raw = block.textContent || '';
-      var offset = pre.toString().length;
-      var text = raw.replace(/\s+/g, ' ');
-      // Whitespace collapse shifts offsets slightly; clamp and move on.
+      // Measure the offset in the same collapsed-whitespace text we read from.
+      var offset = pre.toString().replace(/\s+/g, ' ').length;
+      var text = (block.textContent || '').replace(/\s+/g, ' ');
       offset = Math.min(offset, text.length);
       var s = sentenceAt(text, offset);
       return s || null;

@@ -59,7 +59,7 @@ export default function Shelf(p: Props) {
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: palette.accent }]} />
                   </View>
                   <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]}>
-                    {reading ? `Reading now · ${pct}%` : pct > 0 ? `${pct}% read` : 'Not started'}
+                    {reading ? `Reading now · ${pct}%` : item.cfi ? `${pct}% read` : 'Not started'}
                   </Text>
                 </View>
               </Pressable>

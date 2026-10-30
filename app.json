@@ -20,12 +20,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "blockedPermissions": [
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.SYSTEM_ALERT_WINDOW"
-      ]
+      "allowBackup": false
     },
-    "plugins": ["expo-sqlite", "expo-font", "./plugins/with-standalone-debug"]
+    "plugins": [
+      "expo-sqlite",
+      "expo-font",
+      "./plugins/with-standalone-debug"
+    ]
   }
 }

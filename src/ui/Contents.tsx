@@ -18,9 +18,13 @@ export default function Contents({ visible, palette, toc, current, onPick, onClo
   return (
     <Sheet visible={visible} palette={palette} onClose={onClose} tall>
       <View style={styles.top}>
-        <Text maxFontSizeMultiplier={1.1} style={[styles.heading, { color: palette.prose }]}>Contents</Text>
+        <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={[styles.heading, { color: palette.prose }]}>
+          Contents
+        </Text>
         <Pressable onPress={onClose} hitSlop={12} style={styles.close} accessibilityRole="button">
-          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]}>Back to page</Text>
+          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} numberOfLines={1} style={[styles.small, { color: palette.secondary }]}>
+            Done
+          </Text>
         </Pressable>
       </View>
       {toc.length === 0 ? (
@@ -53,8 +57,8 @@ export default function Contents({ visible, palette, toc, current, onPick, onClo
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 },
-  heading: { fontFamily: FONTS.book, fontSize: 22, flexShrink: 1 },
-  close: { minHeight: TAP, justifyContent: 'center' },
+  heading: { fontFamily: FONTS.book, fontSize: 22, flexShrink: 0 },
+  close: { minHeight: TAP, justifyContent: 'center', flexShrink: 1 },
   small: { fontFamily: FONTS.ui, fontSize: 13 },
   item: { height: TAP + 4, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
   entry: { fontFamily: FONTS.book, fontSize: 18 },

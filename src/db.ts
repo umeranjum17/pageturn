@@ -166,6 +166,10 @@ export function getLastReadAt(): number | null {
   return v ? Number(v) : null;
 }
 
+export function setLastReadAt(now: number): void {
+  setSetting('lastReadAt', String(now));
+}
+
 export function addReadingSeconds(now: Date, seconds: number): void {
   db.runSync(
     'INSERT INTO reading_days (day, seconds) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET seconds = seconds + excluded.seconds',
