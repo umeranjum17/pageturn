@@ -12,6 +12,9 @@
   var style = null;
   var toc = [];
   var spineLocations = null; // spine index -> array of location indexes
+  // Where each TOC entry starts, as sorted { loc, label }. Many books split
+  // files by size, not by chapter, so chapters come from the TOC, not the spine.
+  var tocMarks = null;
   var lastPosition = null;
   var fontUrls = null;
   var lastActivity = 0;
@@ -174,6 +177,46 @@
     }
   }
 
+  function firstLocationOf(section) {
+    var list = spineLocations && spineLocations[section.index];
+    return list && list.length ? list[0] : null;
+  }
+
+  function indexToc(current) {
+    var bySection = {};
+    toc.forEach(function (entry) {
+      var section = book.spine.get(entry.href);
+      if (!section) return;
+      (bySection[section.index] = bySection[section.index] || { section: section, entries: [] }).entries.push(entry);
+    });
+    var marks = [];
+    var chain = Promise.resolve();
+    Object.keys(bySection).forEach(function (key) {
+      var group = bySection[key];
+      chain = chain.then(function () {
+        if (current !== book) return;
+        var needsDoc = group.entries.some(function (e) { return String(e.href).indexOf('#') >= 0; });
+        var loaded = needsDoc ? group.section.load(book.load.bind(book)) : Promise.resolve();
+        return loaded.then(function () {
+          group.entries.forEach(function (entry) {
+            var loc = null;
+            var frag = String(entry.href).split('#')[1];
+            var el = frag && group.section.document ? group.section.document.getElementById(decodeURIComponent(frag)) : null;
+            if (el) loc = book.locations.locationFromCfi(group.section.cfiFromElement(el));
+            if (loc == null || loc < 0) loc = firstLocationOf(group.section);
+            if (loc != null && loc >= 0) marks.push({ loc: loc, label: entry.label });
+          });
+          if (needsDoc) group.section.unload();
+        }).catch(function () { /* this entry falls back to the spine */ });
+      });
+    });
+    return chain.then(function () {
+      if (current !== book) return;
+      marks.sort(function (a, b) { return a.loc - b.loc; });
+      tocMarks = marks.length ? marks : null;
+    });
+  }
+
   function sentenceAt(text, offset) {
     var start = 0;
     var re = /[.!?…]["”’)\]]*\s+/g;
@@ -221,12 +264,20 @@
     var percent = null;
     var chapterLeft = null;
     var bookLeft = null;
+    var chapter = chapterFor(start.href);
     var total = book.locations.length();
     if (total > 0) {
       var idx = book.locations.locationFromCfi(cfi);
       percent = book.locations.percentageFromCfi(cfi);
       bookLeft = Math.max(0, total - idx - 1) * CHARS_PER_LOCATION;
-      if (spineLocations && spineLocations[start.index]) {
+      if (tocMarks) {
+        var next = total - 1;
+        for (var m = 0; m < tocMarks.length; m++) {
+          if (tocMarks[m].loc <= idx) chapter = tocMarks[m].label;
+          else { next = tocMarks[m].loc; break; }
+        }
+        chapterLeft = Math.max(0, next - idx) * CHARS_PER_LOCATION;
+      } else if (spineLocations && spineLocations[start.index]) {
         var inSection = spineLocations[start.index];
         var after = 0;
         for (var i = 0; i < inSection.length; i++) if (inSection[i] > idx) after++;
@@ -239,7 +290,7 @@
       bookId: bookId,
       cfi: cfi,
       percent: percent,
-      chapter: chapterFor(start.href),
+      chapter: chapter,
       chapterLeftChars: chapterLeft,
       bookLeftChars: bookLeft,
       lastLine: lastLineFor(cfi),
@@ -288,6 +339,7 @@
     rendition = null;
     book = null;
     spineLocations = null;
+    tocMarks = null;
     lastPosition = null;
     toc = [];
     document.getElementById('viewer').innerHTML = '';
@@ -350,11 +402,18 @@
       if (token !== opening || current !== book) return;
       var scroller = document.querySelector('.epub-container');
       if (scroller) scroller.addEventListener('scroll', activity, { passive: true });
-      if (book.locations.length() > 0) return;
-      return book.locations.generate(CHARS_PER_LOCATION).then(function () {
+      var ready = book.locations.length() > 0
+        ? Promise.resolve()
+        : book.locations.generate(CHARS_PER_LOCATION).then(function () {
+          if (token !== opening) return;
+          indexSpine();
+          post({ type: 'locations', bookId: bookId, locations: book.locations.save() });
+        });
+      return ready.then(function () {
         if (token !== opening) return;
-        indexSpine();
-        post({ type: 'locations', bookId: bookId, locations: book.locations.save() });
+        return indexToc(current);
+      }).then(function () {
+        if (token !== opening) return;
         var loc = rendition.currentLocation();
         if (loc && loc.start) emitPosition(loc);
       });
