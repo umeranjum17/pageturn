@@ -42,7 +42,8 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 The debug APK is arm64-v8a only and carries its JavaScript bundle, so it runs
-on a phone without a dev server. No cloud build service or account is needed.
+on a phone without a dev server; a clean build is about 28 MB. No cloud build
+service or account is needed.
 
 ## Licence
 
