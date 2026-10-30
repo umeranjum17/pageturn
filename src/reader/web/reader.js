@@ -125,6 +125,54 @@
     });
   }
 
+  // The page ends on whole lines: a line cut by the bottom edge is covered in
+  // the page colour, and a small band always separates the text from the strip.
+  var EDGE_GAP = 8;
+  var edge = null;
+  var edgeQueued = false;
+
+  function queueEdge() {
+    if (edgeQueued) return;
+    edgeQueued = true;
+    requestAnimationFrame(function () {
+      edgeQueued = false;
+      clipEdge();
+    });
+  }
+
+  function clipEdge() {
+    if (!edge) {
+      edge = document.createElement('div');
+      edge.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2;pointer-events:none';
+      document.body.appendChild(edge);
+    }
+    if (style) edge.style.background = style.page;
+    var height = EDGE_GAP;
+    var scroller = document.querySelector('.epub-container');
+    if (scroller) {
+      var bottom = scroller.getBoundingClientRect().bottom;
+      var y = bottom - EDGE_GAP;
+      var frames = scroller.querySelectorAll('iframe');
+      for (var i = 0; i < frames.length; i++) {
+        var fr = frames[i].getBoundingClientRect();
+        if (fr.top > y || fr.bottom <= y) continue;
+        var doc = frames[i].contentDocument;
+        var r = doc && doc.body && doc.caretRangeFromPoint(doc.body.clientWidth / 2, y - fr.top);
+        if (!r) break;
+        var node = r.startContainer;
+        if (node.nodeType === 3 && r.startOffset < node.length) r.setEnd(node, r.startOffset + 1);
+        var rect = r.getClientRects()[0] || r.getBoundingClientRect();
+        // Only a text line straddling the edge; images are left as they are.
+        if (rect && rect.height && rect.height < 3 * style.fontSize * style.lineHeight &&
+            rect.top + fr.top < y && rect.bottom + fr.top > y) {
+          height = Math.max(height, Math.ceil(bottom - (rect.top + fr.top) + 2));
+        }
+        break;
+      }
+    }
+    edge.style.height = height + 'px';
+  }
+
   function b64ToBuffer(b64) {
     var bin = atob(b64);
     var len = bin.length;
@@ -194,6 +242,7 @@
     style = s;
     document.documentElement.style.background = s.page;
     document.body.style.background = s.page;
+    queueEdge();
     if (!rendition) return;
     var css = bookCss(s);
     rendition.getContents().forEach(function (c) {
@@ -321,7 +370,15 @@
     var sentence = text.slice(start, stop).trim();
     // Long sentences keep their ending: that is where the eye stops.
     if (sentence.length > 220) sentence = '…' + sentence.slice(-220).replace(/^\S*\s+/, '');
-    return sentence;
+    return { text: sentence, stop: stop };
+  }
+
+  // Captions, plate credits and page-number debris are not where a reader
+  // stopped; the card wants a line of prose.
+  function isProse(sentence) {
+    var t = sentence.trim();
+    if (/^[\[(].*[\])]$/.test(t)) return false;
+    return (t.match(/[A-Za-z\u00C0-\u024F]{2,}/g) || []).length >= 3 && /[a-z]/.test(t);
   }
 
   function lastLineFor(cfi) {
@@ -340,8 +397,22 @@
       var offset = pre.toString().replace(/\s+/g, ' ').length;
       var text = (block.textContent || '').replace(/\s+/g, ' ');
       offset = Math.min(offset, text.length);
-      var s = sentenceAt(text, offset);
-      return s || null;
+      // From the saved spot, take the first sentence that reads as prose.
+      var blocks = Array.prototype.slice.call(block.ownerDocument.querySelectorAll('p,li,blockquote,dd'));
+      var next = 0;
+      while (next < blocks.length && (blocks[next] === block || block.contains(blocks[next]) ||
+        !(block.compareDocumentPosition(blocks[next]) & Node.DOCUMENT_POSITION_FOLLOWING))) next++;
+      for (var tries = 0; tries < 12; tries++) {
+        while (offset < text.length) {
+          var s = sentenceAt(text, offset);
+          if (s.text && isProse(s.text)) return s.text;
+          offset = Math.max(offset + 1, s.stop);
+        }
+        if (next >= blocks.length) break;
+        text = (blocks[next++].textContent || '').replace(/\s+/g, ' ').trim();
+        offset = 0;
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -460,7 +531,10 @@
       attachInput(contents);
     });
     rendition.on('relocated', function (location) {
-      if (token === opening) emitPosition(location);
+      if (token === opening) {
+        emitPosition(location);
+        queueEdge();
+      }
     });
     rendition.on('displayError', fail);
 
@@ -491,7 +565,11 @@
     }).then(function () {
       if (token !== opening || current !== book) return;
       var scroller = document.querySelector('.epub-container');
-      if (scroller) scroller.addEventListener('scroll', activity, { passive: true });
+      if (scroller) {
+        scroller.addEventListener('scroll', activity, { passive: true });
+        scroller.addEventListener('scroll', queueEdge, { passive: true });
+      }
+      queueEdge();
       var ready = book.locations.length() > 0
         ? Promise.resolve()
         : book.locations.generate(CHARS_PER_LOCATION).then(function () {
@@ -539,6 +617,7 @@
   }
 
   window.addEventListener('message', onMessage);
+  window.addEventListener('resize', queueEdge);
   document.addEventListener('message', onMessage);
   window.onerror = function (m) { fail(m); };
   window.addEventListener('unhandledrejection', function (e) { fail(e.reason); });

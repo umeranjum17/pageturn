@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { streakLength, dayKey } from '../src/lib/streak.ts';
-import { autoTheme, formatMinutes, minutesFor, resolveTheme, shouldShowResume, splitTail, RESUME_GAP_MS } from '../src/lib/time.ts';
+import { autoTheme, formatMinutes, minutesFor, resolveTheme, shouldShowResume, splitTail, fitLine, RESUME_GAP_MS } from '../src/lib/time.ts';
 
 const day = (s: string) => new Date(`${s}T12:00:00`);
 const read = (...days: string[]) => Object.fromEntries(days.map((d) => [d, 600]));
@@ -64,4 +64,21 @@ test('resume card after a long gap only', () => {
 test('splitTail keeps the last words for the accent', () => {
   assert.deepEqual(splitTail('I did not expect such a compliment.'), ['I did not expect ', 'such a compliment.']);
   assert.deepEqual(splitTail('Hello there'), ['', 'Hello there']);
+});
+
+test('fitLine trims to whole words and keeps the ending', () => {
+  const s = 'Why, my dear, you must know, Mrs. Long says that Netherfield is taken by a young man of large fortune.';
+  const out = fitLine(s, 40);
+  assert.ok(out.length <= 41, out);
+  assert.ok(out.startsWith('…') && out.endsWith('large fortune.'), out);
+  assert.ok(s.includes(out.slice(1)) && s.includes(` ${out.slice(1)}`), 'starts at a word boundary');
+  assert.equal(fitLine('This was invitation enough.', 40), 'This was invitation enough.');
+});
+
+test('fitLine drops dangling brackets and never cuts inside a number', () => {
+  assert.equal(fitLine('Copyright 1894 by George Allen.]', 60), 'Copyright 1894 by George Allen.');
+  assert.equal(fitLine('[He came down to see the place', 60), 'He came down to see the place');
+  assert.equal(fitLine('She said (quietly) no.', 60), 'She said (quietly) no.');
+  assert.equal(fitLine('…on the 1894 edition by George Allen.', 22), '…by George Allen.');
+  assert.ok(!/…\d/.test(fitLine('In 1894 there were 3000000 copies sold by then.', 30)));
 });

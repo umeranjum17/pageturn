@@ -41,3 +41,23 @@ export function splitTail(sentence: string, words = 3): [string, string] {
   if (parts.length <= words) return ['', parts.join(' ')];
   return [parts.slice(0, -words).join(' ') + ' ', parts.slice(-words).join(' ')];
 }
+
+/**
+ * The resume card's one line of prose: whole words only, the ending kept,
+ * stray brackets dropped. Trimmed lines lead with an ellipsis before a whole word.
+ */
+export function fitLine(sentence: string, maxChars: number): string {
+  let text = sentence.replace(/\s+/g, ' ').trim();
+  if (text.startsWith('…')) text = text.slice(1).trim();
+  // Brackets that open or close outside the excerpt are debris.
+  text = text.replace(/^[[(]\s*(?![^[(]*[\])])/, '').replace(/(?<![[(][^\])]*)\s*[\])]$/, '');
+  if (text.length <= maxChars) return text;
+  const words = text.split(' ');
+  let out = words[words.length - 1];
+  for (let i = words.length - 2; i >= 0 && out.length + words[i].length + 2 <= maxChars; i--) {
+    out = `${words[i]} ${out}`;
+  }
+  // Open on a word, never on a number or punctuation left over from the cut.
+  out = out.replace(/^(?:[^\p{L}“"‘']*\p{N}[^ ]* )+/u, '').replace(/^[^\p{L}\p{N}“"‘']+/u, '');
+  return `…${out}`;
+}

@@ -1,13 +1,18 @@
 // Shown when the app opens after a long gap: an easy way back into the sentence.
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Book } from '../db';
-import { splitTail } from '../lib/time';
+import { fitLine, splitTail } from '../lib/time';
 import Cover from './Cover';
 import { FONTS, type Palette } from './tokens';
 
 // The card must fit one screen even at the largest system text size.
 const CARD_SCALE_MAX = 1.1;
+// Card inset (16 each side), padding (24 each side) and border.
+const CARD_CHROME = 82;
+const TRACE_SIZE = 18;
+// Average glyph width of the italic serif (measured about 0.30em), with room to spare.
+const TRACE_EM = 0.34;
 
 interface Props {
   visible: boolean;
@@ -25,7 +30,10 @@ function context(chapter: string | null): string {
 
 export default function ResumeCard({ visible, palette, book, minutesToday, onContinue }: Props) {
   const insets = useSafeAreaInsets();
-  const [lead, tail] = splitTail(book.lastLine ?? '');
+  const { width } = useWindowDimensions();
+  const size = TRACE_SIZE * Math.min(PixelRatio.getFontScale(), CARD_SCALE_MAX);
+  const line = fitLine(book.lastLine ?? '', Math.floor((width - CARD_CHROME) / (size * TRACE_EM)));
+  const [lead, tail] = splitTail(line);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onContinue} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.scrim, { backgroundColor: palette.scrim }]} />
@@ -54,7 +62,8 @@ export default function ResumeCard({ visible, palette, book, minutesToday, onCon
           <Text maxFontSizeMultiplier={CARD_SCALE_MAX}
             style={[styles.trace, { color: palette.secondary, borderTopColor: palette.rule }]}
             numberOfLines={1}
-            ellipsizeMode="head"
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
             accessibilityLabel={`Last sentence read: ${book.lastLine}`}
           >
             {lead}
@@ -97,7 +106,7 @@ const styles = StyleSheet.create({
   context: { fontFamily: FONTS.ui, fontSize: 14, lineHeight: 21 },
   trace: {
     fontFamily: FONTS.bookItalic,
-    fontSize: 18,
+    fontSize: TRACE_SIZE,
     lineHeight: 27,
     marginTop: 20,
     marginBottom: 28,
