@@ -20,6 +20,7 @@
   var lastActivity = 0;
   var opening = 0;
   var showing = 0;
+  var PIN_MS = 4000;
   var lastTouchAt = 0;
 
   function post(msg) {
@@ -60,17 +61,67 @@
     ]);
   }
 
+  // A DOM range for a CFI or an href ("file.html#anchor") among the shown sections.
+  function rangeFor(target) {
+    if (/^epubcfi\(/.test(target)) return rendition.getRange(target);
+    var section = book.spine.get(target);
+    if (!section) return null;
+    var frag = String(target).split('#')[1];
+    var found = null;
+    rendition.getContents().forEach(function (c) {
+      if (found || c.sectionIndex !== section.index) return;
+      var el = (frag && c.document.getElementById(decodeURIComponent(frag))) || c.document.body;
+      if (!el) return;
+      found = c.document.createRange();
+      found.selectNodeContents(el);
+      found.collapse(true);
+    });
+    return found;
+  }
+
+  // Scroll the continuous view so the target sits at the top. epub.js only
+  // scrolls relative to where it thinks the view is, which drifts when
+  // sections are added above or images above the target load late.
+  function scrollToTarget(target) {
+    var range = rangeFor(target);
+    var scroller = document.querySelector('.epub-container');
+    if (!range || !scroller) return false;
+    var frame = range.startContainer.ownerDocument.defaultView.frameElement;
+    if (!frame) return false;
+    var rects = range.getClientRects();
+    var rect = rects.length ? rects[0] : range.getBoundingClientRect();
+    if (!rect || (!rect.top && !rect.height)) {
+      var node = range.startContainer;
+      var el = node.nodeType === 1 ? node : node.parentElement;
+      if (el) rect = el.getBoundingClientRect();
+    }
+    if (!rect) return false;
+    var top = frame.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop + rect.top;
+    scroller.scrollTop = Math.max(0, Math.round(top));
+    return true;
+  }
+
   // epub.js scrolls to the target before images and fonts above it have their
-  // height, so the text slides away as they load. Show it again once they
-  // have, unless the reader has touched the page in the meantime.
+  // height, so the text slides away as they load. Put it back once they have,
+  // unless the reader has touched the page in the meantime.
   function show(target) {
     var token = ++showing;
     var started = Date.now();
     return rendition.display(target).then(function () {
       return settled();
     }).then(function () {
-      if (token !== showing || !rendition || lastTouchAt > started) return;
-      return rendition.display(target);
+      if (target == null) return;
+      // Sections added above and their images keep landing for a moment;
+      // hold the target in place until they stop or the reader takes over.
+      var until = Date.now() + PIN_MS;
+      (function pin() {
+        if (token !== showing || !rendition || lastTouchAt > started) return;
+        var ok = scrollToTarget(target);
+        if (Date.now() >= until) return;
+        // epub.js dropped the target's section while laying out: show it again.
+        if (!ok) rendition.display(target).then(function () { setTimeout(pin, 100); }, function () {});
+        else setTimeout(pin, 250);
+      })();
     });
   }
 
