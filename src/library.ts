@@ -2,13 +2,21 @@
 // Title, author and cover come from the EPUB itself once the reader opens it.
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { addBook, listBooks } from './db';
+import { addBook, addHighlight, listBooks, orphanHighlights, setHighlightBook } from './db';
+import { matchBook, parseClippings } from './lib/clippings';
 
 const BOOKS_DIR = `${FileSystem.documentDirectory}books/`;
 // The zip central directory sits at the end of the file and names every entry.
 const TAIL_BYTES = 256 * 1024;
 
 export class ImportError extends Error {}
+
+/** What a finished import produced, for the shelf's one-line notice. */
+export interface Imported {
+  bookId: string | null;
+  highlights: number;
+  attached: number;
+}
 
 function readBytes(uri: string, position: number, length: number): Promise<string> {
   return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64, position, length });
@@ -46,37 +54,106 @@ async function findExisting(uri: string, size: number): Promise<string | null> {
   return null;
 }
 
-export async function importEpub(): Promise<string | null> {
+// A PDF always starts with this; the rest of the header is version noise.
+async function looksLikePdf(uri: string): Promise<boolean> {
+  return atob(await readBytes(uri, 0, 5)) === '%PDF-';
+}
+
+async function copyIn(uri: string, ext: string, title: string, format: 'epub' | 'pdf'): Promise<string> {
+  await FileSystem.makeDirectoryAsync(BOOKS_DIR, { intermediates: true });
+  const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const path = `${BOOKS_DIR}${id}.${ext}`;
+  try {
+    await FileSystem.copyAsync({ from: uri, to: path });
+    addBook(id, path, title, Date.now(), format);
+  } catch (e) {
+    await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => undefined);
+    throw e;
+  }
+  return id;
+}
+
+/** Kindle clippings, matched onto whatever is already on the shelf. */
+async function importClippings(uri: string): Promise<Imported> {
+  const raw = await FileSystem.readAsStringAsync(uri);
+  const clippings = parseClippings(raw);
+  if (!clippings.length) throw new ImportError('No highlights found in that file.');
+  const books = listBooks();
+  const now = Date.now();
+  let attached = 0;
+  clippings.forEach((c, i) => {
+    const book = matchBook(c, books);
+    if (book) attached++;
+    addHighlight({
+      bookId: book?.id ?? null,
+      title: c.title,
+      author: c.author,
+      kind: c.kind,
+      locator: c.locator,
+      page: c.page,
+      text: c.text,
+      addedAt: c.addedAt,
+      // Keep the device's own order for ties: later lines stay later.
+      createdAt: now + i,
+    });
+  });
+  return { bookId: null, highlights: clippings.length, attached };
+}
+
+export async function importFile(): Promise<Imported | null> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ['application/epub+zip', 'application/octet-stream', '*/*'],
+    type: [
+      'application/epub+zip',
+      'application/pdf',
+      'text/plain',
+      'application/octet-stream',
+      '*/*',
+    ],
     copyToCacheDirectory: true,
     multiple: false,
   });
   if (result.canceled || !result.assets?.length) return null;
   const asset = result.assets[0];
   const dropPicked = () => FileSystem.deleteAsync(asset.uri, { idempotent: true }).catch(() => undefined);
+  const name = asset.name ?? '';
+  const lower = name.toLowerCase();
 
   try {
-    const size = await sizeOf(asset.uri);
-    if (!(await looksLikeEpub(asset.uri, size))) throw new ImportError('That file is not an EPUB.');
-    const existing = await findExisting(asset.uri, size);
-    if (existing) return existing;
+    // The picker hands over a copy in the cache; the extension is the first
+    // signal, the bytes are the authority.
+    if (lower.endsWith('.txt')) return await importClippings(asset.uri);
 
-    await FileSystem.makeDirectoryAsync(BOOKS_DIR, { intermediates: true });
-    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    const path = `${BOOKS_DIR}${id}.epub`;
-    try {
-      await FileSystem.copyAsync({ from: asset.uri, to: path });
-      const fallbackTitle = (asset.name ?? 'Untitled').replace(/\.epub$/i, '');
-      addBook(id, path, fallbackTitle, Date.now());
-    } catch (e) {
-      await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => undefined);
-      throw e;
+    const size = await sizeOf(asset.uri);
+    const isPdf = lower.endsWith('.pdf') || (!lower.endsWith('.epub') && !(await looksLikeEpub(asset.uri, size)));
+    if (isPdf) {
+      if (!(await looksLikePdf(asset.uri))) throw new ImportError('That file is not a PDF.');
+      const existing = await findExisting(asset.uri, size);
+      if (existing) return { bookId: existing, highlights: 0, attached: 0 };
+      const title = name.replace(/\.pdf$/i, '') || 'Untitled';
+      return { bookId: await copyIn(asset.uri, 'pdf', title, 'pdf'), highlights: 0, attached: 0 };
     }
-    return id;
+
+    if (!(await looksLikeEpub(asset.uri, size))) throw new ImportError('That file is not an EPUB or a PDF.');
+    const existing = await findExisting(asset.uri, size);
+    if (existing) return { bookId: existing, highlights: 0, attached: 0 };
+    const title = (name || 'Untitled').replace(/\.epub$/i, '');
+    return { bookId: await copyIn(asset.uri, 'epub', title, 'epub'), highlights: 0, attached: 0 };
   } finally {
     await dropPicked();
   }
+}
+
+/** Attach clippings that arrived before their book did. */
+export function reconcileHighlights(): number {
+  const books = listBooks();
+  let moved = 0;
+  for (const orphan of orphanHighlights()) {
+    const book = matchBook(orphan, books);
+    if (!book) continue;
+    setHighlightBook(orphan.id, book.id);
+    moved++;
+  }
+  return moved;
 }
 
 export function readBookBase64(path: string): Promise<string> {

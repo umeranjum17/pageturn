@@ -25,7 +25,8 @@
     "plugins": [
       "expo-sqlite",
       "expo-font",
-      "./plugins/with-standalone-debug"
+      "./plugins/with-standalone-debug",
+      "expo-asset"
     ]
   }
 }
