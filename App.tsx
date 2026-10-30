@@ -346,7 +346,15 @@ function Reader() {
             style={({ pressed }) => [styles.primary, { backgroundColor: palette.accent, opacity: pressed || importing ? 0.8 : 1 }]}
             accessibilityRole="button"
           >
-            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.primaryText, { color: palette.ink }]}>{importing ? 'Importing…' : 'Import an EPUB'}</Text>
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.primaryText, { color: palette.ink }]}>
+              {importing ? 'Importing…' : 'Import a book'}
+            </Text>
+            {/* One picker takes all three; say so here too, in the shelf's words. */}
+            {!importing ? (
+              <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.primaryHint, { color: palette.ink }]}>
+                EPUB, PDF, or My Clippings.txt
+              </Text>
+            ) : null}
           </Pressable>
         </View>
       </View>
@@ -509,6 +517,7 @@ const styles = StyleSheet.create({
   first: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, gap: 20 },
   wordmark: { fontFamily: FONTS.book, fontSize: 40, letterSpacing: -1.6 },
   firstCopy: { fontFamily: FONTS.ui, fontSize: 15, lineHeight: 23 },
-  primary: { minHeight: 52, borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  primary: { minHeight: 58, borderRadius: 6, alignItems: 'center', justifyContent: 'center', gap: 1, marginTop: 12 },
   primaryText: { fontFamily: FONTS.uiStrong, fontSize: 15 },
+  primaryHint: { fontFamily: FONTS.ui, fontSize: 12, opacity: 0.85 },
 });
