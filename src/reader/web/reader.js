@@ -19,6 +19,8 @@
   var fontUrls = null;
   var lastActivity = 0;
   var opening = 0;
+  var showing = 0;
+  var lastTouchAt = 0;
 
   function post(msg) {
     window.ReactNativeWebView.postMessage(JSON.stringify(msg));
@@ -34,6 +36,42 @@
       lastActivity = now;
       post({ type: 'activity' });
     }
+  }
+
+  // Resolves once the images and fonts of the shown sections have laid out,
+  // or after a few seconds, whichever comes first.
+  function settled() {
+    var waits = [];
+    rendition.getContents().forEach(function (c) {
+      var doc = c.document;
+      if (!doc) return;
+      if (doc.fonts && doc.fonts.ready) waits.push(doc.fonts.ready);
+      Array.prototype.forEach.call(doc.images, function (img) {
+        if (img.complete) return;
+        waits.push(new Promise(function (resolve) {
+          img.addEventListener('load', resolve);
+          img.addEventListener('error', resolve);
+        }));
+      });
+    });
+    return Promise.race([
+      Promise.all(waits),
+      new Promise(function (resolve) { setTimeout(resolve, 4000); }),
+    ]);
+  }
+
+  // epub.js scrolls to the target before images and fonts above it have their
+  // height, so the text slides away as they load. Show it again once they
+  // have, unless the reader has touched the page in the meantime.
+  function show(target) {
+    var token = ++showing;
+    var started = Date.now();
+    return rendition.display(target).then(function () {
+      return settled();
+    }).then(function () {
+      if (token !== showing || !rendition || lastTouchAt > started) return;
+      return rendition.display(target);
+    });
   }
 
   function b64ToBuffer(b64) {
@@ -114,7 +152,7 @@
     if (lastPosition && lastPosition.cfi) {
       var cfi = lastPosition.cfi;
       setTimeout(function () {
-        if (rendition) rendition.display(cfi);
+        if (rendition) show(cfi).catch(fail);
       }, 60);
     }
   }
@@ -310,6 +348,7 @@
     doc.addEventListener('touchstart', function (e) {
       var t = e.touches[0];
       x0 = t.screenX; y0 = t.screenY; t0 = Date.now(); moved = false;
+      lastTouchAt = t0;
       activity();
     }, { passive: true });
     doc.addEventListener('touchmove', function (e) {
@@ -394,7 +433,7 @@
             indexSpine();
           } catch (e) { /* regenerate below */ }
         }
-        return rendition.display(msg.cfi || undefined).catch(function () {
+        return show(msg.cfi || undefined).catch(function () {
           return rendition.display();
         });
       });
@@ -435,7 +474,7 @@
         applyStyle(msg.style);
         break;
       case 'goto':
-        if (rendition) rendition.display(msg.target).catch(fail);
+        if (rendition) show(msg.target).catch(fail);
         break;
     }
   }
