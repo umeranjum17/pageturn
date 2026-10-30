@@ -4,9 +4,14 @@ import { dayKey } from './lib/streak';
 import type { ThemeMode } from './lib/time';
 import type { Justify } from './reader/protocol';
 
+export type Format = 'epub' | 'pdf';
+
 export interface Book {
   id: string;
   path: string;
+  format: Format;
+  pages: number | null;
+  page: number | null;
   title: string;
   author: string | null;
   cover: string | null;
@@ -57,11 +62,43 @@ db.execSync(`
   );
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS reading_days (day TEXT PRIMARY KEY NOT NULL, seconds INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS highlights (
+    id TEXT PRIMARY KEY NOT NULL,
+    book_id TEXT,
+    title TEXT NOT NULL,
+    author TEXT,
+    kind TEXT NOT NULL,
+    locator TEXT,
+    page INTEGER,
+    location INTEGER,
+    text TEXT NOT NULL,
+    added_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS highlights_by_book ON highlights (book_id, created_at DESC);
+  -- Re-importing the same export must not double up.
+  CREATE UNIQUE INDEX IF NOT EXISTS highlights_once ON highlights (title, kind, COALESCE(locator, ''), text);
 `);
+
+// Added after the first release, so existing shelves keep their books.
+for (const [column, decl] of [
+  ['format', "TEXT NOT NULL DEFAULT 'epub'"],
+  ['pages', 'INTEGER'],
+  ['page', 'INTEGER'],
+] as const) {
+  try {
+    db.execSync(`ALTER TABLE books ADD COLUMN ${column} ${decl}`);
+  } catch {
+    // already there
+  }
+}
 
 interface BookRow {
   id: string;
   path: string;
+  format: Format;
+  pages: number | null;
+  page: number | null;
   title: string;
   author: string | null;
   cover: string | null;
@@ -78,6 +115,9 @@ function toBook(r: BookRow): Book {
   return {
     id: r.id,
     path: r.path,
+    format: r.format === 'pdf' ? 'pdf' : 'epub',
+    pages: r.pages,
+    page: r.page,
     title: r.title,
     author: r.author,
     cover: r.cover,
@@ -102,8 +142,14 @@ export function getBook(id: string): Book | null {
   return row ? toBook(row) : null;
 }
 
-export function addBook(id: string, path: string, title: string, now: number): void {
-  db.runSync('INSERT INTO books (id, path, title, added_at) VALUES (?, ?, ?, ?)', [id, path, title, now]);
+export function addBook(id: string, path: string, title: string, now: number, format: Format = 'epub'): void {
+  db.runSync('INSERT INTO books (id, path, title, added_at, format) VALUES (?, ?, ?, ?, ?)', [
+    id,
+    path,
+    title,
+    now,
+    format,
+  ]);
 }
 
 export function saveMetadata(id: string, title: string | null, author: string | null, cover: string | null): void {
@@ -121,6 +167,19 @@ export function savePosition(
     'UPDATE books SET cfi = ?, percent = COALESCE(?, percent), chapter = ?, last_line = COALESCE(?, last_line) WHERE id = ?',
     [p.cfi, p.percent, p.chapter, p.lastLine, id],
   );
+}
+
+export function savePage(id: string, page: number, percent: number, pages: number | null): void {
+  db.runSync('UPDATE books SET page = ?, percent = ?, pages = COALESCE(?, pages) WHERE id = ?', [
+    page,
+    percent,
+    pages,
+    id,
+  ]);
+}
+
+export function savePages(id: string, pages: number): void {
+  db.runSync('UPDATE books SET pages = ? WHERE id = ?', [pages, id]);
 }
 
 export function saveLocations(id: string, locations: string): void {
@@ -184,4 +243,99 @@ export function readingDays(): Record<string, number> {
     out[r.day] = r.seconds;
   }
   return out;
+}
+
+
+export interface Highlight {
+  id: string;
+  bookId: string | null;
+  title: string;
+  author: string | null;
+  kind: string;
+  locator: string | null;
+  page: number | null;
+  text: string;
+  addedAt: number | null;
+  createdAt: number;
+}
+
+interface HighlightRow {
+  id: string;
+  book_id: string | null;
+  title: string;
+  author: string | null;
+  kind: string;
+  locator: string | null;
+  page: number | null;
+  location: number | null;
+  text: string;
+  added_at: number | null;
+  created_at: number;
+}
+
+function toHighlight(r: HighlightRow): Highlight {
+  return {
+    id: r.id,
+    bookId: r.book_id,
+    title: r.title,
+    author: r.author,
+    kind: r.kind,
+    locator: r.locator,
+    page: r.page,
+    text: r.text,
+    addedAt: r.added_at,
+    createdAt: r.created_at,
+  };
+}
+
+export function addHighlight(h: Omit<Highlight, 'id'>): void {
+  db.runSync(
+    `INSERT OR IGNORE INTO highlights (id, book_id, title, author, kind, locator, page, location, text, added_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+    [
+      `${h.createdAt.toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      h.bookId,
+      h.title,
+      h.author,
+      h.kind,
+      h.locator,
+      h.page,
+      h.text,
+      h.addedAt,
+      h.createdAt,
+    ],
+  );
+}
+
+/** Newest first: the device's own "Added on" stamp, else when it was imported. */
+export function listHighlights(bookId: string): Highlight[] {
+  return db
+    .getAllSync<HighlightRow>(
+      'SELECT * FROM highlights WHERE book_id = ? ORDER BY COALESCE(added_at, created_at) DESC, created_at DESC',
+      [bookId],
+    )
+    .map(toHighlight);
+}
+
+export function countHighlights(bookId: string): number {
+  return (
+    db.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM highlights WHERE book_id = ?', [bookId])?.n ?? 0
+  );
+}
+
+/** Clippings that arrived before their book did, waiting to be attached. */
+export function orphanHighlights(): Pick<Highlight, 'id' | 'title' | 'author'>[] {
+  return db
+    .getAllSync<{ id: string; title: string; author: string | null }>(
+      'SELECT id, title, author FROM highlights WHERE book_id IS NULL',
+    )
+    .map((r) => ({ id: r.id, title: r.title, author: r.author }));
+}
+
+export function setHighlightBook(id: string, bookId: string): void {
+  db.runSync('UPDATE highlights SET book_id = ? WHERE id = ?', [bookId, id]);
+}
+
+export function highlightCountForBook(bookId: string): number {
+  return db.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM highlights WHERE book_id = ?', [bookId])?.n ?? 0;
 }

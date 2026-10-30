@@ -1,5 +1,5 @@
 // The shelf: reachable from the page, never the landing screen.
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Book } from '../db';
 import Cover from './Cover';
@@ -26,8 +26,14 @@ export default function Shelf(p: Props) {
         <View style={styles.header}>
           <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.heading, { color: palette.prose }]}>Library</Text>
           {p.currentId ? (
-            <Pressable onPress={p.onClose} style={styles.back} accessibilityRole="button">
-              <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]}>Back to page</Text>
+            <Pressable
+              onPress={p.onClose}
+              style={styles.back}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Back to page"
+            >
+              <View style={[styles.chevron, { borderColor: palette.secondary, transform: [{ rotate: '45deg' }] }]} />
             </Pressable>
           ) : null}
         </View>
@@ -45,7 +51,12 @@ export default function Shelf(p: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={`${item.title}${item.author ? `, ${item.author}` : ''}, ${pct} percent read`}
               >
-                <Cover title={item.title} author={item.author} palette={palette} width={56} />
+                {/* A PDF shows its own first page; an EPUB keeps the typographic cover. */}
+                {item.format === 'pdf' && item.cover ? (
+                  <Image source={{ uri: item.cover }} style={[styles.pageThumb, { borderColor: palette.rule }]} accessibilityLabel={`First page of ${item.title}`} />
+                ) : (
+                  <Cover title={item.title} author={item.author} palette={palette} width={56} />
+                )}
                 <View style={styles.details}>
                   <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.title, { color: palette.prose }]} numberOfLines={2}>
                     {item.title}
@@ -59,7 +70,12 @@ export default function Shelf(p: Props) {
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: palette.accent }]} />
                   </View>
                   <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]}>
-                    {reading ? `Reading now · ${pct}%` : item.cfi ? `${pct}% read` : 'Not started'}
+                    {reading ? 'Reading now · ' : ''}
+                    {item.format === 'pdf' && item.page && item.pages
+                      ? `page ${item.page} of ${item.pages}`
+                      : item.cfi || item.page
+                        ? `${pct}% read`
+                        : 'Not started'}
                   </Text>
                 </View>
               </Pressable>
@@ -76,7 +92,14 @@ export default function Shelf(p: Props) {
           style={({ pressed }) => [styles.import, { backgroundColor: palette.accent, opacity: pressed || p.importing ? 0.75 : 1 }]}
           accessibilityRole="button"
         >
-          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.importText, { color: palette.ink }]}>{p.importing ? 'Importing…' : 'Import EPUB'}</Text>
+          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.importText, { color: palette.ink }]}>
+            {p.importing ? 'Importing…' : 'Import'}
+          </Text>
+          {!p.importing ? (
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.importHint, { color: palette.ink }]}>
+              EPUB, PDF, or My Clippings.txt
+            </Text>
+          ) : null}
         </Pressable>
       </View>
     </Modal>
@@ -87,7 +110,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 24 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TAP, marginBottom: 8 },
   heading: { fontFamily: FONTS.book, fontSize: 30 },
-  back: { minHeight: TAP, justifyContent: 'center', paddingLeft: 16 },
+  back: { width: TAP, height: TAP, alignItems: 'flex-end', justifyContent: 'center' },
+  chevron: { width: 12, height: 12, borderLeftWidth: 1.5, borderBottomWidth: 1.5, marginRight: 4 },
   list: { paddingBottom: 16 },
   row: { flexDirection: 'row', gap: 16, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth * 2 },
   details: { flex: 1, justifyContent: 'center', gap: 4 },
@@ -97,6 +121,8 @@ const styles = StyleSheet.create({
   fill: { height: 2 },
   empty: { fontFamily: FONTS.ui, fontSize: 14, textAlign: 'center', marginTop: 48 },
   notice: { fontFamily: FONTS.ui, fontSize: 13, textAlign: 'center', marginBottom: 12 },
-  import: { minHeight: 52, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  import: { minHeight: 56, borderRadius: 6, alignItems: 'center', justifyContent: 'center', gap: 1 },
   importText: { fontFamily: FONTS.uiStrong, fontSize: 15 },
+  importHint: { fontFamily: FONTS.ui, fontSize: 12, opacity: 0.85 },
+  pageThumb: { width: 56, height: 84, borderWidth: StyleSheet.hairlineWidth * 2, backgroundColor: '#fff', resizeMode: 'cover' },
 });

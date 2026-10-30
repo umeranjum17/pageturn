@@ -8,13 +8,14 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as db from './src/db';
-import { importEpub, ImportError, readBookBase64 } from './src/library';
+import { importFile, ImportError, readBookBase64, reconcileHighlights } from './src/library';
 import { dayKey, streakLength } from './src/lib/streak';
 import { formatMinutes, minutesFor, resolveTheme, shouldShowResume } from './src/lib/time';
 import type { OutMessage, Position, ReaderStyle, TocEntry } from './src/reader/protocol';
 import ReaderView, { type ReaderHandle } from './src/reader/ReaderView';
 import Contents from './src/ui/Contents';
 import Controls from './src/ui/Controls';
+import HighlightsSheet from './src/ui/Highlights';
 import ResumeCard from './src/ui/ResumeCard';
 import Shelf from './src/ui/Shelf';
 import { FONTS, PALETTES, TAP, TEXT_SCALE_MAX } from './src/ui/tokens';
@@ -57,6 +58,8 @@ function Reader() {
   const [controls, setControls] = useState(false);
   const [contents, setContents] = useState(false);
   const [shelf, setShelf] = useState(false);
+  const [lines, setLines] = useState(false);
+  const [highlights, setHighlights] = useState<db.Highlight[]>([]);
   const [resume, setResume] = useState(() => shouldShowResume(db.getLastReadAt(), Date.now()));
   const [brightness, setBrightness] = useState(prefs.brightness ?? 0.5);
   const [importing, setImporting] = useState(false);
@@ -88,6 +91,7 @@ function Reader() {
       margin: prefs.margin,
       justify: prefs.justify,
       dimImages: themeName === 'night',
+      invert: themeName === 'night',
     }),
     [palette, prefs.fontSize, prefs.lineHeight, prefs.margin, prefs.justify, themeName],
   );
@@ -110,7 +114,15 @@ function Reader() {
       openWatch.current = setTimeout(() => {
         if (bookRef.current === id && openedRef.current !== id) setError(UNREADABLE);
       }, OPEN_TIMEOUT_MS);
-      reader.current?.open({ bookId: id, base64, cfi: b.cfi, locations: b.locations, style: styleRef.current });
+      reader.current?.open({
+        bookId: id,
+        format: b.format,
+        base64,
+        cfi: b.cfi,
+        page: b.page,
+        locations: b.locations,
+        style: styleRef.current,
+      });
       db.markOpened(id, Date.now());
     } catch {
       setError(UNREADABLE);
@@ -121,6 +133,7 @@ function Reader() {
   useEffect(() => {
     setPosition(null);
     setToc([]);
+    setHighlights(currentId ? db.listHighlights(currentId) : []);
     if (currentId) openCurrent();
   }, [currentId, openCurrent]);
 
@@ -199,7 +212,9 @@ function Reader() {
           if (openWatch.current) clearTimeout(openWatch.current);
           setError(null);
           db.saveMetadata(msg.bookId, msg.title, msg.author, msg.cover);
+          if (msg.pages) db.savePages(msg.bookId, msg.pages);
           setToc(msg.toc);
+          setHighlights(db.listHighlights(msg.bookId));
           refreshBooks();
           break;
         case 'locations':
@@ -211,7 +226,8 @@ function Reader() {
           markActive();
           if (saveTimer.current) clearTimeout(saveTimer.current);
           saveTimer.current = setTimeout(() => {
-            db.savePosition(msg.bookId, msg);
+            if (msg.page) db.savePage(msg.bookId, msg.page, msg.percent ?? 0, msg.pages);
+            else db.savePosition(msg.bookId, msg);
             db.setLastReadAt(Date.now());
           }, 400);
           break;
@@ -227,6 +243,7 @@ function Reader() {
           // Before the book opens, an error means it never will. After that,
           // book quirks surface here and the reader keeps going.
           if (bookRef.current && openedRef.current !== bookRef.current) setError(UNREADABLE);
+          else if (msg.message === 'not found') setNotice('That line is not in this copy.');
           break;
       }
     },
@@ -269,10 +286,20 @@ function Reader() {
     setNotice(null);
     setImporting(true);
     try {
-      const id = await importEpub();
-      if (id) {
+      const got = await importFile();
+      if (!got) return;
+      refreshBooks();
+      // Clippings can land before their book does; re-match after every import.
+      reconcileHighlights();
+      if (got.highlights) {
+        setNotice(
+          `${got.highlights} ${got.highlights === 1 ? 'highlight' : 'highlights'} imported, ` +
+            `${got.attached} attached to your books.`,
+        );
         refreshBooks();
-        openBook(id);
+        if (bookRef.current) setHighlights(db.listHighlights(bookRef.current));
+      } else if (got.bookId) {
+        openBook(got.bookId);
       }
     } catch (e) {
       setNotice(e instanceof ImportError ? e.message : 'That file could not be imported.');
@@ -288,13 +315,20 @@ function Reader() {
   const bookLeft = position?.bookLeftChars;
   const chapterLeft = position?.chapterLeftChars;
 
-  const meta = [
-    percent !== null ? `${Math.round(percent * 100)}%` : null,
-    bookLeft != null ? `${formatMinutes(minutesFor(bookLeft))} left` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  const chapterMeta = chapterLeft != null ? `${formatMinutes(minutesFor(chapterLeft))} in chapter` : '';
+  const isPdf = book?.format === 'pdf';
+  const pageNow = position?.page ?? book?.page ?? null;
+  const pageTotal = position?.pages ?? book?.pages ?? null;
+  const meta = isPdf
+    ? pageNow
+      ? `page ${pageNow} of ${pageTotal ?? '?'}`
+      : 'loading page…'
+    : [
+        percent !== null ? `${Math.round(percent * 100)}%` : null,
+        bookLeft != null ? `${formatMinutes(minutesFor(bookLeft))} left` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+  const chapterMeta = !isPdf && chapterLeft != null ? `${formatMinutes(minutesFor(chapterLeft))} in chapter` : '';
 
   if (!book) {
     return (
@@ -346,18 +380,31 @@ function Reader() {
           {meta || ' '}
         </Text>
         <View style={styles.bottomLine}>
+          {/* A bare numeral means nothing to a new reader: say what it counts. */}
           {streak > 0 ? (
-            <View style={styles.streak} accessibilityLabel={`${streak} day reading streak`}>
-              <View style={[styles.streakDot, { backgroundColor: palette.accent }]} />
-              <Text maxFontSizeMultiplier={STRIP_SCALE_MAX} style={[styles.streakText, { color: palette.accent }]}>{streak}</Text>
-            </View>
+            <Text
+              maxFontSizeMultiplier={STRIP_SCALE_MAX}
+              numberOfLines={1}
+              style={[styles.streakText, { color: palette.accent }]}
+              accessibilityLabel={`${streak} day reading streak`}
+            >
+              {`${streak}-day streak`}
+            </Text>
           ) : (
-            <View />
+            <View style={styles.streakSlot} />
           )}
           <Text maxFontSizeMultiplier={STRIP_SCALE_MAX} style={[styles.meta, styles.chapterMeta, { color: palette.secondary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
             {chapterMeta}
           </Text>
-          <Pressable onPress={() => setShelf(true)} style={styles.libraryLink} accessibilityRole="button" accessibilityLabel="Library">
+          <Pressable
+            onPress={() => {
+              refreshBooks();
+              setShelf(true);
+            }}
+            style={styles.libraryLink}
+            accessibilityRole="button"
+            accessibilityLabel="Library"
+          >
             <Text maxFontSizeMultiplier={STRIP_SCALE_MAX} style={[styles.meta, { color: palette.secondary }]}>library</Text>
           </Pressable>
         </View>
@@ -372,9 +419,14 @@ function Reader() {
         brightnessFollowsSystem={prefs.brightness === null}
         onSystemBrightness={onSystemBrightness}
         onPrefs={updatePrefs}
+        isPdf={isPdf}
         onContents={() => {
           setControls(false);
           setContents(true);
+        }}
+        onHighlights={() => {
+          setControls(false);
+          setLines(true);
         }}
         onRecap={() => {
           setControls(false);
@@ -393,6 +445,20 @@ function Reader() {
           reader.current?.goto(href);
         }}
         onClose={() => setContents(false)}
+      />
+      <HighlightsSheet
+        visible={lines}
+        palette={palette}
+        bookTitle={book.title}
+        highlights={highlights}
+        canJump={() => !isPdf}
+        onJump={(h) => {
+          setNotice(null);
+          setLines(false);
+          if (isPdf && h.page) reader.current?.setPage(h.page);
+          else reader.current?.find(h.text.trim().split(/\s+/).slice(0, 8).join(' '));
+        }}
+        onClose={() => setLines(false)}
       />
       <Shelf
         visible={shelf}
@@ -436,9 +502,8 @@ const styles = StyleSheet.create({
   progress: { height: 1, marginBottom: 10, overflow: 'hidden' },
   meta: { fontFamily: FONTS.ui, fontSize: 13, lineHeight: 19 },
   bottomLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TAP },
-  streak: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: TAP, minWidth: 32 },
-  streakDot: { width: 6, height: 6, borderRadius: 3 },
-  streakText: { fontFamily: FONTS.uiStrong, fontSize: 13 },
+  streakSlot: { width: 84 },
+  streakText: { fontFamily: FONTS.uiStrong, fontSize: 13, minWidth: 84 },
   chapterMeta: { flex: 1, textAlign: 'center', paddingHorizontal: 4 },
   libraryLink: { minHeight: TAP, minWidth: TAP, alignItems: 'flex-end', justifyContent: 'center' },
   first: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, gap: 20 },

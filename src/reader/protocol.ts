@@ -3,6 +3,7 @@
 // and receives metadata, positions and taps out.
 
 export type Justify = 'left' | 'justify';
+export type BookFormat = 'epub' | 'pdf';
 
 export interface ReaderStyle {
   page: string;
@@ -14,6 +15,8 @@ export interface ReaderStyle {
   margin: number;
   justify: Justify;
   dimImages: boolean;
+  /** Night PDFs invert the page rather than paint a black sheet. */
+  invert: boolean;
 }
 
 export interface TocEntry {
@@ -29,16 +32,22 @@ export type InMessage =
   | {
       type: 'load-end';
       bookId: string;
+      format: BookFormat;
       cfi: string | null;
+      page: number | null;
       locations: string | null;
       style: ReaderStyle;
     }
   | { type: 'style'; style: ReaderStyle }
-  | { type: 'goto'; target: string };
+  | { type: 'goto'; target: string }
+  | { type: 'page'; page: number }
+  | { type: 'find'; text: string };
 
 export interface Position {
   bookId: string;
   cfi: string;
+  page: number | null;
+  pages: number | null;
   percent: number | null;
   chapter: string | null;
   chapterLeftChars: number | null;
@@ -56,6 +65,7 @@ export type OutMessage =
       author: string | null;
       cover: string | null;
       toc: TocEntry[];
+      pages: number | null;
     }
   | { type: 'locations'; bookId: string; locations: string }
   | ({ type: 'relocated' } & Position)

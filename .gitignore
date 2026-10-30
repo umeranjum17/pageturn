@@ -42,3 +42,4 @@ yarn-error.*
 
 # generated reader engine (scripts/build-engine.mjs)
 src/reader/engine.generated.ts
+assets/reader-engine.html

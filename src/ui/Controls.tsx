@@ -17,7 +17,9 @@ interface Props {
   onBrightness(v: number): void;
   onSystemBrightness(): void;
   onPrefs(p: Prefs): void;
+  isPdf: boolean;
   onContents(): void;
+  onHighlights(): void;
   onRecap(): void;
   onClose(): void;
 }
@@ -142,9 +144,14 @@ export default function Controls(p: Props) {
         />
       </Row>
       <View style={[styles.links, { borderTopColor: palette.rule }]}>
-        <Pressable onPress={p.onContents} style={styles.link} accessibilityRole="button">
-          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.linkText, { color: palette.prose }]}>Contents</Text>
+        <Pressable onPress={p.onHighlights} style={styles.link} accessibilityRole="button">
+          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.linkText, { color: palette.prose }]}>Highlights</Text>
         </Pressable>
+        {!p.isPdf ? (
+          <Pressable onPress={p.onContents} style={styles.link} accessibilityRole="button">
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.linkText, { color: palette.prose }]}>Contents</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={p.onRecap} style={styles.link} accessibilityRole="button">
           <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.linkText, { color: palette.prose }]}>Where you left off</Text>
         </Pressable>
