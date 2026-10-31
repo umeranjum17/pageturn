@@ -143,6 +143,18 @@ export async function importFile(): Promise<Imported | null> {
   }
 }
 
+/**
+ * A book that arrived as a download rather than a picked file: the same EPUB
+ * check, the same duplicate check, the same copy onto the shelf.
+ */
+export async function importDownloaded(uri: string, title: string): Promise<string> {
+  const size = await sizeOf(uri);
+  if (!(await looksLikeEpub(uri, size))) throw new ImportError('That download is not an EPUB.');
+  const existing = await findExisting(uri, size);
+  if (existing) return existing;
+  return copyIn(uri, 'epub', title, 'epub');
+}
+
 /** Attach clippings that arrived before their book did. */
 export function reconcileHighlights(): number {
   const books = listBooks();

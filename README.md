@@ -21,8 +21,11 @@ Kindle show up in the book they belong to.
   text.
 - **PDF.** One printed page at a time, pinch or double-tap to zoom, and a night
   invert that keeps print readable instead of flooding the room.
-- **Private.** Everything stays on the phone in SQLite. No account, no backend,
-  no network calls.
+- **A shelf you can fill.** Books come from the public-domain catalogue instead
+  of a store: whole, free to read, downloaded with their covers and their
+  catalogue page remembered. That download is the only request the app makes.
+- **Private.** Your shelf, your place and your highlights stay on the phone in
+  SQLite. No account, no backend, no telemetry.
 
 Import any DRM-free `.epub`, any `.pdf`, or your Kindle `My Clippings.txt` with
 the system file picker. A Kindle book's own text is DRM-protected and has no
@@ -48,7 +51,8 @@ Needs Node 20+, JDK 17+ and the Android SDK (with `ANDROID_HOME` set).
 
 ```sh
 npm install           # also generates the bundled reader engine asset
-npm test              # streak, theme and time-left logic
+npm test              # streak, theme, time-left and catalogue parsing
+npm run probe:catalog # asks the live catalogue a question per endpoint
 npm run typecheck
 npm run apk           # engine + expo prebuild + ./gradlew assembleDebug
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
@@ -57,6 +61,18 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 The debug APK is arm64-v8a only and carries its JavaScript bundle, so it runs
 on a phone without a dev server; a clean build is about 28 MB. No cloud build
 service or account is needed.
+
+## Sources and licence
+
+Books are downloaded from [Project Gutenberg](https://www.gutenberg.org), the
+oldest public-domain library on the open web: whole books, free to read, in the
+formats its OPDS catalogue publishes. The app reads the catalogue's public
+list, search and book feeds, and picks the smallest plain-text EPUB it offers —
+a phone does not need a 24 MB illustrated edition. Nothing there is paid, and
+nothing here touches a store's DRM.
+
+Cataloguing metadata comes from Project Gutenberg; each downloaded book keeps
+its own licence line and its catalogue page address on the shelf.
 
 ## Licence
 

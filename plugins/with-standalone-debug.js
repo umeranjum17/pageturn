@@ -2,13 +2,13 @@
 // - arm64-v8a only, and native libraries stored compressed, to keep the APK small
 // - the JS bundle is embedded in the debug APK, so it runs without a dev server
 // - the debug manifest no longer adds the dev-server overlay and cleartext
-//   permissions: this debug build talks to nothing
+//   permissions: this debug build talks only to the public-domain catalogue
 const fs = require('fs');
 const path = require('path');
 const { withAndroidManifest, withAppBuildGradle, withDangerousMod, withGradleProperties } = require('expo/config-plugins');
 
 const BLOCKED = [
-  'android.permission.INTERNET',
+  // Internet is not here: the app downloads its catalogue books over it.
   'android.permission.ACCESS_NETWORK_STATE',
   'android.permission.ACCESS_LOCAL_NETWORK',
   'android.permission.SYSTEM_ALERT_WINDOW',

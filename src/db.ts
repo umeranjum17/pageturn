@@ -78,6 +78,8 @@ db.execSync(`
   CREATE INDEX IF NOT EXISTS highlights_by_book ON highlights (book_id, created_at DESC);
   -- Re-importing the same export must not double up.
   CREATE UNIQUE INDEX IF NOT EXISTS highlights_once ON highlights (title, kind, COALESCE(locator, ''), text);
+  -- Where a downloaded book came from, so it is never fetched twice.
+  CREATE TABLE IF NOT EXISTS book_source (book_id TEXT PRIMARY KEY NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL, licence TEXT, page_url TEXT);
 `);
 
 // Added after the first release, so existing shelves keep their books.
@@ -188,6 +190,29 @@ export function saveLocations(id: string, locations: string): void {
 
 export function markOpened(id: string, now: number): void {
   db.runSync('UPDATE books SET opened_at = ? WHERE id = ?', [now, id]);
+}
+
+/** The book already on the shelf for this catalogue entry, if any. */
+export function findBookBySource(source: string, sourceId: string): string | null {
+  return (
+    db.getFirstSync<{ book_id: string }>(
+      'SELECT book_id FROM book_source WHERE source = ? AND source_id = ?',
+      [source, sourceId],
+    )?.book_id ?? null
+  );
+}
+
+export function recordBookSource(row: {
+  bookId: string;
+  source: string;
+  sourceId: string;
+  licence: string | null;
+  pageUrl: string | null;
+}): void {
+  db.runSync(
+    'INSERT OR IGNORE INTO book_source (book_id, source, source_id, licence, page_url) VALUES (?, ?, ?, ?, ?)',
+    [row.bookId, row.source, row.sourceId, row.licence, row.pageUrl],
+  );
 }
 
 function getSetting(key: string): string | null {
