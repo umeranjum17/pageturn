@@ -15,6 +15,7 @@ interface Props {
   notice: string | null;
   secondsToday: number;
   onOpen(id: string): void;
+  onFind(): void;
   onImport(): void;
   onClose(): void;
 }
@@ -29,17 +30,22 @@ export default function Shelf(p: Props) {
       <View style={[styles.screen, { backgroundColor: palette.page, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.header}>
           <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.heading, { color: palette.prose }]}>Library</Text>
-          {p.currentId ? (
-            <Pressable
-              onPress={p.onClose}
-              style={styles.back}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Back to page"
-            >
-              <View style={[styles.chevron, { borderColor: palette.secondary, transform: [{ rotate: '45deg' }] }]} />
+          <View style={styles.headerActions}>
+            <Pressable onPress={p.onFind} style={styles.find} hitSlop={8} accessibilityRole="button" accessibilityLabel="Find books">
+              <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.findText, { color: palette.accent }]}>Find books</Text>
             </Pressable>
-          ) : null}
+            {p.currentId ? (
+              <Pressable
+                onPress={p.onClose}
+                style={styles.back}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Back to page"
+              >
+                <View style={[styles.chevron, { borderColor: palette.secondary, transform: [{ rotate: '45deg' }] }]} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
         {today ? <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]}>{today}</Text> : null}
         {up ? (
@@ -127,6 +133,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 24 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TAP, marginBottom: 8 },
   heading: { fontFamily: FONTS.book, fontSize: 30 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  find: { minHeight: TAP, justifyContent: 'center' },
+  findText: { fontFamily: FONTS.uiStrong, fontSize: 15 },
   back: { width: TAP, height: TAP, alignItems: 'flex-end', justifyContent: 'center' },
   chevron: { width: 12, height: 12, borderLeftWidth: 1.5, borderBottomWidth: 1.5, marginRight: 4 },
   list: { paddingBottom: 16 },
