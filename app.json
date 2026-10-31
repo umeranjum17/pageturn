@@ -3,6 +3,9 @@
     "name": "pageturn",
     "slug": "pageturn",
     "version": "0.1.0",
+    "extra": {
+      "GOOGLE_BOOKS_API_KEY": ""
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

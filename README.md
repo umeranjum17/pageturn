@@ -23,11 +23,13 @@ Kindle show up in the book they belong to.
   text.
 - **PDF.** One printed page at a time, pinch or double-tap to zoom, and a night
   invert that keeps print readable instead of flooding the room.
-- **A shelf you can fill.** Books come from the public-domain catalogue instead
-  of a store: whole, free to read, downloaded with their covers and their
-  catalogue page remembered. The catalogue is the only place the app fetches
-  from: no store, no account, nothing else. One row above the shelf names the
-  book to read next with the reason, in plain words: the one you left
+- **A shelf you can fill.** Search finds any book online: Open Library answers
+  every search, and a whole free book from the public-domain catalogue is
+  downloaded with its cover and its catalogue page remembered. A book the
+  catalogue does not hold still appears, with its cover, its author and a
+  preview and store page, and says plainly that a copy bought in a store cannot
+  be read here. Nothing in this app opens a bought book. One row above the shelf
+  names the book to read next with the reason, in plain words: the one you left
   unfinished, else the newest unopened, else the shortest.
 - **Private.** Your shelf, your place and your highlights stay on the phone in
   SQLite. No account, no backend, no telemetry.
@@ -76,8 +78,21 @@ list, search and book feeds, and picks the smallest plain-text EPUB it offers â€
 a phone does not need a 24 MB illustrated edition. Nothing there is paid, and
 nothing here touches a store's DRM.
 
-Cataloguing metadata comes from Project Gutenberg; each downloaded book keeps
-its own licence line and its catalogue page address on the shelf.
+Search reaches past that catalogue. Every search asks
+[Open Library](https://openlibrary.org) for titles, authors, years, covers and
+work pages, and shows a book the catalogue does not hold with a link to its own
+page and to a store page. [Google Books](https://developers.google.com/books)
+is the second source and is asked only when a key is set in the app's own
+config (`expo.extra.GOOGLE_BOOKS_API_KEY` in `app.json`, empty by default);
+without a key the app never asks and only Open Library answers. Store links go
+to a browser: a book bought on the Play Store or on a Kindle stays locked in
+that store's app, and this one neither reads it nor claims to.
+
+Cataloguing metadata comes from Project Gutenberg and Open Library; each
+downloaded book keeps its own licence line and its catalogue page address on
+the shelf. `npm run probe:search` asks the live sources the acceptance queries
+(the book that must come back for each, with its cover and its author) and
+finds nothing for a nonsense word.
 
 ## Licence
 

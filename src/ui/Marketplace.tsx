@@ -1,9 +1,9 @@
-// The catalogue: browse it, search it, and put a whole book on the shelf.
-// Reached from the library; one tap on a book downloads it.
+// Find books in the free catalogue or online, and put a whole free one on the shelf.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   StyleSheet,
@@ -16,7 +16,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { downloadCatalogueBook } from '../catalog/download';
 import type { CatalogueEntry } from '../catalog/opds';
-import { SOURCE, bookPage, feed, listUrl, searchUrl, type SortOrder } from '../catalog/source';
+import { SOURCE, bookPage, feed, listUrl, type SortOrder } from '../catalog/source';
+import { freeEntry, readDescription, searchBooks, type ResultEntry } from '../catalog/websearch';
 import * as db from '../db';
 import Cover from './Cover';
 import { FONTS, TAP, type Palette, TEXT_SCALE_MAX } from './tokens';
@@ -24,7 +25,7 @@ import { FONTS, TAP, type Palette, TEXT_SCALE_MAX } from './tokens';
 const GAP = 16;
 const CARD_COVERS = 12;
 const COVER_LIMIT = 4;
-const SEARCH_DEBOUNCE_MS = 400;
+const SEARCH_DEBOUNCE_MS = 300;
 const FAILED_DOWNLOAD = 'That download did not finish. Tap the book to try again.';
 
 const ROWS: { key: SortOrder; label: string }[] = [
@@ -50,7 +51,7 @@ interface CardState {
 }
 
 interface Loaded {
-  entries: CatalogueEntry[];
+  entries: ResultEntry[];
   failed: boolean;
 }
 
@@ -97,7 +98,7 @@ function loadCover(id: string): Promise<string | null> {
 }
 
 interface CardProps {
-  entry: CatalogueEntry;
+  entry: ResultEntry;
   palette: Palette;
   width: number;
   state: CardState;
@@ -107,11 +108,13 @@ interface CardProps {
 function BookCard({ entry, palette, width, state, onPress }: CardProps) {
   const [cover, setCover] = useState<string | null>(null);
   const [shelved, setShelved] = useState(false);
+  const [blurb, setBlurb] = useState(entry.description);
 
   useEffect(() => {
     let live = true;
     setShelved(db.findBookBySource(SOURCE, entry.id) !== null);
-    loadCover(entry.id).then((uri) => {
+    if (!entry.description && entry.descriptionUrl) readDescription(entry.descriptionUrl).then((text) => live && setBlurb(text));
+    (entry.free ? loadCover(entry.id) : Promise.resolve(entry.cover)).then((uri) => {
       if (live && uri) setCover(uri);
     });
     return () => {
@@ -124,12 +127,12 @@ function BookCard({ entry, palette, width, state, onPress }: CardProps) {
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => (entry.free ? onPress() : Linking.openURL(entry.store).catch(() => undefined))}
       disabled={state.busy}
       style={({ pressed }) => [{ width, opacity: pressed ? 0.7 : 1 }]}
       accessibilityRole="button"
       accessibilityLabel={`${entry.title}${entry.author ? `, ${entry.author}` : ''}`}
-      accessibilityHint={onShelf ? 'Opens this book' : 'Downloads this book'}
+      accessibilityHint={entry.free ? (onShelf ? 'Opens this book' : 'Downloads this book') : 'Opens the store page'}
     >
       {/* The designed cover is drawn at once; the picture drops in on top of it. */}
       <View style={{ width, height: width * 1.5 }}>
@@ -149,6 +152,14 @@ function BookCard({ entry, palette, width, state, onPress }: CardProps) {
           {line}
         </Text>
       ) : null}
+      {entry.free ? null : (
+        <Pressable onPress={() => Linking.openURL(entry.preview).catch(() => undefined)} hitSlop={14} accessibilityRole="link" accessibilityLabel={`Preview ${entry.title}`}>
+          <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} numberOfLines={4} style={[styles.cardSmall, { color: palette.secondary }]}>
+            {[blurb ?? entry.year, 'A copy bought there cannot be read in this app.'].filter(Boolean).join('\n')}
+            <Text style={{ color: palette.accent }}>{'\nPreview'}</Text>
+          </Text>
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -168,7 +179,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
     if (started.current.has(key)) return;
     started.current.add(key);
     feed(listUrl(key))
-      .then((got) => setSections((s) => ({ ...s, [key]: { entries: got.entries.slice(0, CARD_COVERS), failed: false } })))
+      .then((got) => setSections((s) => ({ ...s, [key]: { entries: got.entries.slice(0, CARD_COVERS).map(freeEntry), failed: false } })))
       .catch(() => {
         started.current.delete(key);
         setSections((s) => ({ ...s, [key]: { entries: [], failed: true } }));
@@ -198,9 +209,8 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
       return;
     }
     let live = true;
-    setResults(null);
     const timer = setTimeout(() => {
-      feed(searchUrl(term))
+      searchBooks(term)
         .then((got) => {
           if (live) setResults({ entries: got.entries, failed: false });
         })
@@ -234,7 +244,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
     [cards, onOpen, onShelved],
   );
 
-  const card = (entry: CatalogueEntry) => (
+  const card = (entry: ResultEntry) => (
     <BookCard entry={entry} palette={palette} width={cardWidth} state={cards[entry.id] ?? {}} onPress={() => tap(entry)} />
   );
   const muted = [styles.small, { color: palette.secondary }];
@@ -260,7 +270,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
           returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"
-          accessibilityLabel="Search the catalogue"
+          accessibilityLabel="Search for a book"
           style={[styles.search, { color: palette.prose, borderBottomColor: palette.rule }]}
         />
         {term ? (
@@ -278,7 +288,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
                 {results?.failed
                   ? 'That search did not finish. Try again in a moment.'
                   : results
-                    ? 'No books matched that word.'
+                    ? 'Nothing found. Try another spelling, or just the author.'
                     : 'Searching…'}
               </Text>
             }
