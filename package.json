@@ -34,7 +34,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mts",
     "prebuild": "npm run engine && expo prebuild --platform android --clean",
-    "apk": "npm run prebuild && cd android && ./gradlew assembleDebug"
+    "apk": "npm run prebuild && cd android && ./gradlew assembleDebug",
+    "probe:catalog": "node scripts/probe-catalog.mjs"
   },
   "private": true,
   "license": "Apache-2.0"
