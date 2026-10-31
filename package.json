@@ -37,6 +37,7 @@
     "test": "node --test test/*.test.mts",
     "prebuild": "npm run engine && expo prebuild --platform android --clean",
     "apk": "npm run prebuild && cd android && ./gradlew assembleDebug",
+    "probe:archive": "node scripts/probe-archive.mjs",
     "probe:catalog": "node scripts/probe-catalog.mjs",
     "probe:owned": "node scripts/probe-owned.mjs"
   },

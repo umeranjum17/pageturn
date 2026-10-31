@@ -63,7 +63,9 @@ export async function deviceShelf(): Promise<Shelf> {
     findBySource: (source, sourceId) => db.findBookBySource(source, sourceId),
     recordSource: (row) => db.recordBookSource(row),
     download: async (url, name) => {
-      const target = temp(`${name.replace(/[^a-z0-9]+/gi, '-')}.epub`);
+      // The Archive serves scanned PDFs where it has no EPUB; the shelf reads both.
+      const ext = /\.pdf$/i.test(url) ? 'pdf' : 'epub';
+      const target = temp(`${name.replace(/[^a-z0-9]+/gi, '-')}.${ext}`);
       await drop(target);
       const { uri, status } = await FileSystem.downloadAsync(url, target);
       if (status !== 200) {

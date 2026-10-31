@@ -145,11 +145,18 @@ export async function importFile(): Promise<Imported | null> {
 
 /**
  * A book that arrived as a download rather than a picked file: the same EPUB
- * check, the same duplicate check, the same copy onto the shelf.
+ * check, the same duplicate check, the same copy onto the shelf. The Archive
+ * hands out a scanned PDF when an item has no EPUB at all.
  */
 export async function importDownloaded(uri: string, title: string): Promise<string> {
   const size = await sizeOf(uri);
-  if (!(await looksLikeEpub(uri, size))) throw new ImportError('That download is not an EPUB.');
+  const epub = await looksLikeEpub(uri, size);
+  if (!epub) {
+    if (!(await looksLikePdf(uri))) throw new ImportError('That download is not an EPUB or a PDF.');
+    const existing = await findExisting(uri, size);
+    if (existing) return existing;
+    return copyIn(uri, 'pdf', title, 'pdf');
+  }
   const existing = await findExisting(uri, size);
   if (existing) return existing;
   return copyIn(uri, 'epub', title, 'epub');
