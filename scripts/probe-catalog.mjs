@@ -36,9 +36,15 @@ await feed('bookshelves', bookshelfUrl('best books'));
 
 try {
   const book = await bookPage('1342');
+  const file = book.epub.split('/').pop();
+  // The chosen file, and the fact that it really is there, in bytes.
+  const head = await fetch(book.epub, { headers: { 'User-Agent': USER_AGENT } });
+  const bytes = head.headers.get('content-length') ?? '?';
+  await head.body?.cancel();
   console.log(
-    `book        1342 "${book.title}" by ${book.author} epub=${book.epub.split('/').pop()} ` +
-      `cover=${book.cover ? 'yes' : 'no'} subjects=${book.categories.length} licence="${book.licence}"`,
+    `book        1342 "${book.title}" by ${book.author} epub=${file} ` +
+      `bytes=${bytes} (${head.status}) cover=${book.cover ? 'yes' : 'no'} ` +
+      `subjects=${book.categories.length} licence="${book.licence}"`,
   );
 } catch (e) {
   failed++;
