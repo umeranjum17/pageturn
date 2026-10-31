@@ -114,7 +114,7 @@ test('next up falls to the newest unopened book, then to the shortest', () => {
     book({ id: 'newest', addedAt: 20 }),
   ]);
   assert.equal(unopened?.book.id, 'newest');
-  assert.equal(unopened?.reason, 'New on your shelf');
+  assert.equal(unopened?.reason, 'Not started yet');
 
   const shortest = nextUp([
     book({ id: 'long', openedAt: 1, percent: 1, pages: 900 }),
@@ -122,6 +122,38 @@ test('next up falls to the newest unopened book, then to the shortest', () => {
   ]);
   assert.equal(shortest?.book.id, 'short');
   assert.equal(shortest?.reason, 'Shortest on your shelf');
+  assert.equal(nextUp([]), null);
+});
+
+test('next up skips the first shelf row, and says started only for an opened book', () => {
+  // Real rows in the order listBooks() returns them: COALESCE(opened_at, added_at)
+  // DESC puts the newest or most recently opened book in the row under the card.
+  const shelf = [
+    book({ id: 'frankenstein', addedAt: 500, pages: 280 }),
+    book({ id: 'middlemarch', openedAt: 400, addedAt: 100, percent: 0.37 }),
+    book({ id: 'kidnapped', openedAt: 300, addedAt: 60, pages: 120 }),
+  ];
+  const up = nextUp(shelf);
+  assert.notEqual(up?.book.id, shelf[0].id);
+  assert.equal(up?.book.id, 'middlemarch');
+  assert.equal(up?.reason, 'You are 37 percent in');
+
+  // Opened, no page turned yet: the one book that has earned the started line.
+  const opened = nextUp([shelf[0], shelf[2]]);
+  assert.equal(opened?.book.id, 'kidnapped');
+  assert.equal(opened?.reason, 'You started this one');
+
+  // Opened and the reader stored a zero: the card says the stored number.
+  assert.equal(nextUp([shelf[0], book({ id: 'moby', openedAt: 200, percent: 0 })])?.reason, 'You are 0 percent in');
+
+  // Never opened: a short one, or plainly not started - never 'started this one'.
+  const fresh = nextUp([shelf[0], book({ id: 'kidnapped', addedAt: 60, pages: 120 })]);
+  assert.equal(fresh?.book.id, 'kidnapped');
+  assert.equal(fresh?.reason, 'A short one to start');
+  assert.equal(nextUp([book({ id: 'kidnapped', addedAt: 60, pages: 120 }), shelf[0]])?.reason, 'Not started yet');
+
+  // Only the first shelf row left: no honest candidate, so no card at all.
+  assert.equal(nextUp([shelf[0]]), null);
   assert.equal(nextUp([]), null);
 });
 

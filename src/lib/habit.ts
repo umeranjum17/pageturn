@@ -26,21 +26,38 @@ function lengthOf(b: Book): number {
   }
 }
 
+/** Short enough to be a gentle first read: an evening or two, not a term. */
+const SHORT_PAGES = 150;
+
+/** Why this book, said only from what its own row records. */
+function reasonFor(b: Book): string {
+  if (b.openedAt === null) return lengthOf(b) <= SHORT_PAGES ? 'A short one to start' : 'Not started yet';
+  return b.percent == null ? 'You started this one' : `You are ${percentIn(b)} percent in`;
+}
+
 /**
  * The one book most likely to be read next: the one he left unfinished, else
  * the newest unopened, else the shortest. Null when there is nothing to offer.
+ *
+ * The shelf lists the same books, and its top row is already the newest or most
+ * recently opened one - the very book these tiers would pick. The card sits
+ * directly above that row, so offering it there shows one book twice; the first
+ * shelf row is out of the running.
  */
 export function nextUp(books: Book[]): NextUp | null {
-  const unfinished = books
+  const pool = books.filter((b) => b.id !== books[0]?.id);
+  if (!pool.length) return null;
+
+  const unfinished = pool
     .filter((b) => b.openedAt !== null && (b.percent ?? 0) < FINISHED_AT)
     .sort((a, b) => (b.openedAt ?? 0) - (a.openedAt ?? 0));
   const b = unfinished[0];
-  if (b) return { book: b, reason: b.percent ? `You are ${percentIn(b)} percent in` : 'You started this one' };
+  if (b) return { book: b, reason: reasonFor(b) };
 
-  const unopened = books.filter((b) => b.openedAt === null).sort((a, b) => b.addedAt - a.addedAt);
-  if (unopened.length) return { book: unopened[0], reason: 'New on your shelf' };
+  const unopened = pool.filter((b) => b.openedAt === null).sort((a, b) => b.addedAt - a.addedAt);
+  if (unopened.length) return { book: unopened[0], reason: reasonFor(unopened[0]) };
 
-  const shortest = [...books].sort((a, b) => lengthOf(a) - lengthOf(b) || a.addedAt - b.addedAt)[0];
+  const shortest = [...pool].sort((a, b) => lengthOf(a) - lengthOf(b) || a.addedAt - b.addedAt)[0];
   return shortest ? { book: shortest, reason: 'Shortest on your shelf' } : null;
 }
 
