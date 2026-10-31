@@ -13,9 +13,11 @@ Kindle show up in the book they belong to.
 - **Night and paper.** OLED night after 7 pm, warm paper in the day, or pick one.
 - **Comfort controls.** Brightness, text size, line spacing, margins, alignment,
   and the book's own table of contents, one tap on the middle of the page away.
-- **An easy way back in.** After a long gap, a card shows the cover, the last
-  sentence you read and one Continue button.
-- **A gentle streak.** Minutes read per day, one automatic rest day each week.
+- **An easy way back in.** After a gap of about two hours, a card shows the
+  cover, the last sentence you read and one Continue button; when the exact line
+  is not known it shows how far in you are instead.
+- **A gentle streak.** Minutes read per day, one automatic rest day each week,
+  and today's minutes on the shelf once you have read.
 - **Your own lines.** Import `My Clippings.txt` from a Kindle and each passage
   is attached to the matching book, newest first, one tap from its place in the
   text.
@@ -24,6 +26,8 @@ Kindle show up in the book they belong to.
 - **A shelf you can fill.** Books come from the public-domain catalogue instead
   of a store: whole, free to read, downloaded with their covers and their
   catalogue page remembered. That download is the only request the app makes.
+  One row above the shelf names the book to read next with the reason, in plain
+  words: the one you left unfinished, else the newest unopened, else the shortest.
 - **Private.** Your shelf, your place and your highlights stay on the phone in
   SQLite. No account, no backend, no telemetry.
 

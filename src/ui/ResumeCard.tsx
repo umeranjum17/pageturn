@@ -2,6 +2,7 @@
 import { Modal, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Book } from '../db';
+import { carryOnLine } from '../lib/habit';
 import { fitLine, splitTail } from '../lib/time';
 import Cover from './Cover';
 import { FONTS, type Palette } from './tokens';
@@ -70,7 +71,9 @@ export default function ResumeCard({ visible, palette, book, minutesToday, onCon
             <Text maxFontSizeMultiplier={CARD_SCALE_MAX} style={{ color: palette.accent }}>{tail}</Text>
           </Text>
         ) : (
-          <View style={[styles.spacer, { borderTopColor: palette.rule }]} />
+          <Text maxFontSizeMultiplier={CARD_SCALE_MAX} numberOfLines={1} style={[styles.trace, { color: palette.secondary, borderTopColor: palette.rule }]}>
+            {carryOnLine(book.percent)}
+          </Text>
         )}
         <Pressable
           onPress={onContinue}
@@ -113,7 +116,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
   },
-  spacer: { marginTop: 20, marginBottom: 28, borderTopWidth: 1 },
   continue: { minHeight: 52, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   continueText: { fontFamily: FONTS.uiStrong, fontSize: 15 },
   daily: { fontFamily: FONTS.ui, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 16 },

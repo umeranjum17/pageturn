@@ -10,6 +10,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import * as db from './src/db';
 import { importFile, ImportError, readBookBase64, reconcileHighlights } from './src/library';
 import { dayKey, streakLength } from './src/lib/streak';
+import { chapterLine } from './src/lib/habit';
 import { formatMinutes, minutesFor, resolveTheme, shouldShowResume } from './src/lib/time';
 import type { OutMessage, Position, ReaderStyle, TocEntry } from './src/reader/protocol';
 import ReaderView, { type ReaderHandle } from './src/reader/ReaderView';
@@ -25,6 +26,7 @@ const ACTIVE_WINDOW_MS = 90_000;
 const AWAKE_WINDOW_MS = 3 * 60_000;
 const OPEN_TIMEOUT_MS = 45_000;
 const UNREADABLE = 'This book could not be opened.';
+const CHAPTER_MARK_MS = 2_000;
 // The bottom strip stays one calm line each, even at large system text sizes.
 const STRIP_SCALE_MAX = 1.15;
 
@@ -66,6 +68,8 @@ function Reader() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(() => db.readingDays());
+  const [chapterMark, setChapterMark] = useState<string | null>(null);
+  const lastChapter = useRef<string | null>(null);
 
   const lastActivity = useRef(0);
   const awake = useRef(false);
@@ -132,6 +136,7 @@ function Reader() {
   // Open whenever the current book changes (the WebView reopens on 'ready' too).
   useEffect(() => {
     setPosition(null);
+    lastChapter.current = null;
     setToc([]);
     setHighlights(currentId ? db.listHighlights(currentId) : []);
     if (currentId) openCurrent();
@@ -224,6 +229,13 @@ function Reader() {
           if (msg.bookId !== bookRef.current) return;
           setPosition(msg);
           markActive();
+          // A new chapter earns one calm line, then the strip goes quiet again.
+          const shown = lastChapter.current;
+          lastChapter.current = msg.chapter;
+          if (msg.chapter && shown && msg.chapter !== shown) {
+            setChapterMark(msg.chapter);
+            setTimeout(() => setChapterMark(null), CHAPTER_MARK_MS);
+          }
           if (saveTimer.current) clearTimeout(saveTimer.current);
           saveTimer.current = setTimeout(() => {
             if (msg.page) db.savePage(msg.bookId, msg.page, msg.percent ?? 0, msg.pages);
@@ -328,7 +340,7 @@ function Reader() {
       ]
         .filter(Boolean)
         .join(' · ');
-  const chapterMeta = !isPdf && chapterLeft != null ? `${formatMinutes(minutesFor(chapterLeft))} in chapter` : '';
+  const chapterMeta = !isPdf ? chapterMark ?? (chapterLeft != null ? chapterLine(chapterLeft) : '') : '';
 
   if (!book) {
     return (
@@ -475,6 +487,7 @@ function Reader() {
         currentId={currentId}
         importing={importing}
         notice={notice}
+        secondsToday={days[today] ?? 0}
         onOpen={openBook}
         onImport={doImport}
         onClose={() => setShelf(false)}

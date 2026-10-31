@@ -2,6 +2,7 @@
 import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Book } from '../db';
+import { minutesTodayLine, nextUp } from '../lib/habit';
 import Cover from './Cover';
 import { FONTS, TAP, type Palette, TEXT_SCALE_MAX } from './tokens';
 
@@ -12,6 +13,7 @@ interface Props {
   currentId: string | null;
   importing: boolean;
   notice: string | null;
+  secondsToday: number;
   onOpen(id: string): void;
   onImport(): void;
   onClose(): void;
@@ -20,6 +22,8 @@ interface Props {
 export default function Shelf(p: Props) {
   const { palette } = p;
   const insets = useSafeAreaInsets();
+  const up = nextUp(p.books);
+  const today = minutesTodayLine(p.secondsToday);
   return (
     <Modal visible={p.visible} animationType="slide" onRequestClose={p.onClose} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.screen, { backgroundColor: palette.page, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}>
@@ -37,6 +41,19 @@ export default function Shelf(p: Props) {
             </Pressable>
           ) : null}
         </View>
+        {today ? <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]}>{today}</Text> : null}
+        {up ? (
+          <Pressable
+            onPress={() => p.onOpen(up.book.id)}
+            style={({ pressed }) => [styles.next, { backgroundColor: palette.surface, borderColor: palette.rule, opacity: pressed ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Next up: ${up.book.title}. ${up.reason}`}
+          >
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.accent }]}>Next up</Text>
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.title, { color: palette.prose }]} numberOfLines={1}>{up.book.title}</Text>
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.secondary }]} numberOfLines={1}>{up.reason}</Text>
+          </Pressable>
+        ) : null}
         <FlatList
           data={p.books}
           keyExtractor={(b) => b.id}
@@ -120,6 +137,7 @@ const styles = StyleSheet.create({
   bar: { height: 2, borderRadius: 1, marginTop: 8, marginBottom: 2, overflow: 'hidden' },
   fill: { height: 2 },
   empty: { fontFamily: FONTS.ui, fontSize: 14, textAlign: 'center', marginTop: 48 },
+  next: { borderWidth: 1, borderRadius: 12, padding: 16, marginTop: 4, marginBottom: 16, gap: 4 },
   notice: { fontFamily: FONTS.ui, fontSize: 13, textAlign: 'center', marginBottom: 12 },
   import: { minHeight: 56, borderRadius: 6, alignItems: 'center', justifyContent: 'center', gap: 1 },
   importText: { fontFamily: FONTS.uiStrong, fontSize: 15 },

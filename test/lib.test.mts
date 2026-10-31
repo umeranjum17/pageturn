@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { streakLength, dayKey } from '../src/lib/streak.ts';
 import { autoTheme, formatMinutes, minutesFor, resolveTheme, shouldShowResume, splitTail, fitLine, RESUME_GAP_MS } from '../src/lib/time.ts';
+import { carryOnLine, chapterLine, minutesTodayLine, nextUp } from '../src/lib/habit.ts';
+import type { Book } from '../src/db.ts';
 
 const day = (s: string) => new Date(`${s}T12:00:00`);
 const read = (...days: string[]) => Object.fromEntries(days.map((d) => [d, 600]));
@@ -81,4 +83,62 @@ test('fitLine drops dangling brackets and never cuts inside a number', () => {
   assert.equal(fitLine('She said (quietly) no.', 60), 'She said (quietly) no.');
   assert.equal(fitLine('…on the 1894 edition by George Allen.', 22), '…by George Allen.');
   assert.ok(!/…\d/.test(fitLine('In 1894 there were 3000000 copies sold by then.', 30)));
+});
+
+const book = (over: Partial<Book> & { id: string }): Book => ({
+  path: '', format: 'epub', pages: null, page: null, title: over.id, author: null, cover: null,
+  addedAt: 0, openedAt: null, cfi: null, percent: null, chapter: null, lastLine: null, locations: null,
+  ...over,
+});
+
+test('the way back in waits about two hours, not a day', () => {
+  assert.equal(RESUME_GAP_MS, 2 * 60 * 60 * 1000);
+  assert.equal(shouldShowResume(1e12, 1e12 + 2 * 60 * 60 * 1000), true);
+  assert.equal(shouldShowResume(1e12, 1e12 + 119 * 60 * 1000), false);
+});
+
+test('next up is the book he left unfinished, with its own reason', () => {
+  const up = nextUp([
+    book({ id: 'old', openedAt: 100, percent: 0.1 }),
+    book({ id: 'recent', openedAt: 900, percent: 0.4, title: 'Middlemarch' }),
+    book({ id: 'done', openedAt: 950, percent: 1 }),
+  ]);
+  assert.equal(up?.book.id, 'recent');
+  assert.equal(up?.reason, 'You are 40 percent in');
+});
+
+test('next up falls to the newest unopened book, then to the shortest', () => {
+  const unopened = nextUp([
+    book({ id: 'done', openedAt: 1, percent: 1 }),
+    book({ id: 'older', addedAt: 10 }),
+    book({ id: 'newest', addedAt: 20 }),
+  ]);
+  assert.equal(unopened?.book.id, 'newest');
+  assert.equal(unopened?.reason, 'New on your shelf');
+
+  const shortest = nextUp([
+    book({ id: 'long', openedAt: 1, percent: 1, pages: 900 }),
+    book({ id: 'short', openedAt: 2, percent: 1, pages: 120 }),
+  ]);
+  assert.equal(shortest?.book.id, 'short');
+  assert.equal(shortest?.reason, 'Shortest on your shelf');
+  assert.equal(nextUp([]), null);
+});
+
+test('the chapter line says what is left, in plain words', () => {
+  assert.equal(chapterLine(0), 'under a minute left in this chapter');
+  assert.equal(chapterLine(3 * 1300), '3 min left in this chapter');
+  assert.equal(chapterLine(90 * 1300), '1h 30m left in this chapter');
+});
+
+test("today's minutes show only once he has read today", () => {
+  assert.equal(minutesTodayLine(0), null);
+  assert.equal(minutesTodayLine(59), null);
+  assert.equal(minutesTodayLine(60), '1 minute today');
+  assert.equal(minutesTodayLine(12 * 60), '12 minutes today');
+});
+
+test('with no last line the card still offers a way in', () => {
+  assert.equal(carryOnLine(null), 'Carry on from where you stopped');
+  assert.equal(carryOnLine(0.4), 'Carry on from where you stopped · 40%');
 });
