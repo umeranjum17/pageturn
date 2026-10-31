@@ -28,8 +28,8 @@ export function resolveTheme(mode: ThemeMode, now: Date): ThemeName {
   return mode === 'auto' ? autoTheme(now) : mode;
 }
 
-/** Hours away after which opening the app shows the resume card. */
-export const RESUME_GAP_MS = 4 * 60 * 60 * 1000;
+/** A gap longer than this brings back the way in, not a scolding. */
+export const RESUME_GAP_MS = 2 * 60 * 60 * 1000;
 
 export function shouldShowResume(lastReadAt: number | null, now: number): boolean {
   return lastReadAt !== null && now - lastReadAt >= RESUME_GAP_MS;
