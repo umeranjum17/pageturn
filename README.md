@@ -26,11 +26,17 @@ Kindle show up in the book they belong to.
 - **A shelf you can fill.** Books come from the public-domain catalogue instead
   of a store: whole, free to read, downloaded with their covers and their
   catalogue page remembered. The catalogue is the only place the app fetches
-  from: no store, no account, nothing else. One row above the shelf names the
-  book to read next with the reason, in plain words: the one you left
-  unfinished, else the newest unopened, else the shortest.
+  from unless you ask for more. One row above the shelf names the book to read
+  next with the reason, in plain words: the one you left unfinished, else the
+  newest unopened, else the shortest.
+- **The books you already own.** Connect Google and your Play Books library is
+  listed with its covers and authors. A purchase that offers a plain EPUB comes
+  onto the shelf; one that does not opens in Play Books in a tap. A store's lock
+  is never broken. Kindle has no API and is never scraped: there you add a title
+  you bought, and its one action opens it in Kindle.
 - **Private.** Your shelf, your place and your highlights stay on the phone in
-  SQLite. No account, no backend, no telemetry.
+  SQLite. No backend, no telemetry. Connecting Google is optional, asks for the
+  books scope alone, and keeps its token in memory.
 
 Import any DRM-free `.epub`, any `.pdf`, or your Kindle `My Clippings.txt` with
 the system file picker. A Kindle book's own text is DRM-protected and has no
