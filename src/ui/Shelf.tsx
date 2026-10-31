@@ -17,6 +17,8 @@ interface Props {
   onOpen(id: string): void;
   onFind(): void;
   onImport(): void;
+  /** The books he owns in Google Play Books and on Kindle. */
+  onOwned(): void;
   onClose(): void;
 }
 
@@ -33,6 +35,9 @@ export default function Shelf(p: Props) {
           <View style={styles.headerActions}>
             <Pressable onPress={p.onFind} style={styles.find} hitSlop={8} accessibilityRole="button" accessibilityLabel="Find books">
               <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.findText, { color: palette.accent }]}>Find books</Text>
+            </Pressable>
+            <Pressable onPress={p.onOwned} style={styles.find} hitSlop={8} accessibilityRole="button" accessibilityLabel="Books you own elsewhere">
+              <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.small, { color: palette.accent }]}>owned</Text>
             </Pressable>
             {p.currentId ? (
               <Pressable

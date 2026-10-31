@@ -1,0 +1,84 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 2,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "zyTCAlFPjgYC",
+      "volumeInfo": {
+        "title": "Pride and Prejudice",
+        "authors": ["Jane Austen", "Tony Tanner"],
+        "publishedDate": "2003",
+        "industryIdentifiers": [
+          { "type": "ISBN_13", "identifier": "9780141439518" },
+          { "type": "ISBN_10", "identifier": "0141439513" }
+        ],
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=zyTCAlFPjgYC&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=zyTCAlFPjgYC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "en",
+        "infoLink": "https://play.google.com/store/books/details?id=zyTCAlFPjgYC&source=gbs_api"
+      },
+      "accessInfo": {
+        "country": "US",
+        "viewability": "PARTIAL",
+        "embeddable": true,
+        "publicDomain": false,
+        "epub": {
+          "isAvailable": true,
+          "acsTokenLink": "http://books.google.com/books/download/Pride_and_Prejudice.epub?format=epub&id=zyTCAlFPjgYC&acs_token=EXAMPLE"
+        },
+        "accessViewStatus": "SAMPLE",
+        "webReaderLink": "http://play.google.com/books/reader?id=zyTCAlFPjgYC&hl=&printsec=frontcover&output=reader&source=gbs_api",
+        "downloadAccess": {
+          "kind": "books#downloadAccessRestriction",
+          "volumeId": "zyTCAlFPjgYC",
+          "restricted": true,
+          "deviceAllowed": false,
+          "justAcquired": false,
+          "maxDownloadDevices": 100,
+          "downloadsRemaining": 0,
+          "nonce": "EXAMPLE",
+          "reasonCode": "SAMPLE"
+        }
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Q2ZEEAAAQBAJ",
+      "volumeInfo": {
+        "title": "The Yellow Wallpaper",
+        "authors": ["Charlotte Perkins Gilman"],
+        "publishedDate": "1899",
+        "imageLinks": {
+          "thumbnail": "https://books.google.com/books/content?id=Q2ZEEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+        },
+        "language": "en",
+        "infoLink": "https://play.google.com/store/books/details?id=Q2ZEEAAAQBAJ&source=gbs_api"
+      },
+      "accessInfo": {
+        "country": "US",
+        "viewability": "ALL_PAGES",
+        "embeddable": true,
+        "publicDomain": false,
+        "epub": {
+          "isAvailable": true,
+          "downloadLink": "https://books.google.com/books/download/The_Yellow_Wallpaper.epub?format=epub&id=Q2ZEEAAAQBAJ&output=json"
+        },
+        "pdf": { "isAvailable": false },
+        "accessViewStatus": "FULL_PURCHASED",
+        "downloadAccess": {
+          "kind": "books#downloadAccessRestriction",
+          "volumeId": "Q2ZEEAAAQBAJ",
+          "restricted": false,
+          "deviceAllowed": true,
+          "justAcquired": true,
+          "maxDownloadDevices": 6,
+          "downloadsRemaining": 5,
+          "nonce": "EXAMPLE"
+        }
+      }
+    }
+  ]
+}

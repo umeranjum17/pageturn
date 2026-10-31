@@ -18,6 +18,7 @@ import Contents from './src/ui/Contents';
 import Controls from './src/ui/Controls';
 import HighlightsSheet from './src/ui/Highlights';
 import Marketplace from './src/ui/Marketplace';
+import Owned from './src/owned/Owned';
 import ResumeCard from './src/ui/ResumeCard';
 import Shelf from './src/ui/Shelf';
 import { FONTS, PALETTES, TAP, TEXT_SCALE_MAX } from './src/ui/tokens';
@@ -62,6 +63,7 @@ function Reader() {
   const [contents, setContents] = useState(false);
   const [shelf, setShelf] = useState(false);
   const [market, setMarket] = useState(false);
+  const [owned, setOwned] = useState(false);
   const [lines, setLines] = useState(false);
   const [highlights, setHighlights] = useState<db.Highlight[]>([]);
   const [resume, setResume] = useState(() => shouldShowResume(db.getLastReadAt(), Date.now()));
@@ -510,9 +512,23 @@ function Reader() {
         onOpen={openBook}
         onFind={openMarket}
         onImport={doImport}
+        onOwned={() => {
+          setShelf(false);
+          setOwned(true);
+        }}
         onClose={() => setShelf(false)}
       />
       {marketScreen}
+      <Owned
+        visible={owned}
+        palette={palette}
+        onClose={() => setOwned(false)}
+        onImported={(id) => {
+          setOwned(false);
+          refreshBooks();
+          openBook(id);
+        }}
+      />
       <ResumeCard
         visible={resume && !shelf}
         palette={palette}

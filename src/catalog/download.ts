@@ -50,7 +50,8 @@ export async function shelve(book: CatalogueBook, shelf: Shelf): Promise<string>
   return bookId;
 }
 
-async function deviceShelf(): Promise<Shelf> {
+/** The app's own half of the seam, for anything else that puts a book on the shelf. */
+export async function deviceShelf(): Promise<Shelf> {
   const FileSystem = await import('expo-file-system/legacy');
   const db = await import('../db');
   const { importDownloaded } = await import('../library');
