@@ -2,6 +2,7 @@
   "expo": {
     "name": "pageturn",
     "slug": "pageturn",
+    "scheme": "pageturn",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,6 +22,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "allowBackup": false
+    },
+    "extra": {
+      "GOOGLE_OAUTH_CLIENT_ID": ""
     },
     "plugins": [
       "expo-sqlite",
