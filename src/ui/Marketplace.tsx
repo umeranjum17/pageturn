@@ -110,7 +110,6 @@ function BookCard({ entry, palette, width, state, onPress }: CardProps) {
   const [cover, setCover] = useState<string | null>(null);
   const [shelved, setShelved] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-
   useEffect(() => {
     let live = true;
     setShelved(db.findBookBySource(entry.torrent ? ARCHIVE : SOURCE, entry.id) !== null);
@@ -140,9 +139,7 @@ function BookCard({ entry, palette, width, state, onPress }: CardProps) {
       {/* The designed cover is drawn at once; the picture drops in on top of it. */}
       <View style={{ width, height: width * 1.5 }}>
         <Cover title={entry.title} author={entry.author} palette={palette} width={width} />
-        {cover ?? entry.cover ? (
-          <Image source={{ uri: (cover ?? entry.cover)! }} style={styles.coverImage} accessibilityIgnoresInvertColors />
-        ) : null}
+        {cover ?? entry.cover ? <Image source={{ uri: (cover ?? entry.cover)! }} style={styles.coverImage} accessibilityIgnoresInvertColors /> : null}
       </View>
       <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} numberOfLines={2} style={[styles.cardTitle, { color: palette.prose }]}>
         {entry.title}
@@ -213,13 +210,11 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
     const timer = setTimeout(() => {
       feed(searchUrl(term))
         .then((got) => {
-          if (live) setResults({ entries: got.entries, failed: false });
+          if (live) setResults((was) => ({ entries: [...got.entries, ...(was?.entries ?? [])], failed: false }));
         })
         .catch(() => {
           if (live) setResults({ entries: [], failed: true });
         });
-      // The Archive's books join the same list when they land, so the catalogue
-      // that answers first is not held up by the other.
       searchArchive(term).then((found) => {
         if (live && found.hits.length) setResults((was) => ({ entries: [...(was?.entries ?? []), ...found.hits.map(hitOf)], failed: false }));
       });
