@@ -17,6 +17,7 @@ import ReaderView, { type ReaderHandle } from './src/reader/ReaderView';
 import Contents from './src/ui/Contents';
 import Controls from './src/ui/Controls';
 import HighlightsSheet from './src/ui/Highlights';
+import Marketplace from './src/ui/Marketplace';
 import ResumeCard from './src/ui/ResumeCard';
 import Shelf from './src/ui/Shelf';
 import { FONTS, PALETTES, TAP, TEXT_SCALE_MAX } from './src/ui/tokens';
@@ -60,6 +61,7 @@ function Reader() {
   const [controls, setControls] = useState(false);
   const [contents, setContents] = useState(false);
   const [shelf, setShelf] = useState(false);
+  const [market, setMarket] = useState(false);
   const [lines, setLines] = useState(false);
   const [highlights, setHighlights] = useState<db.Highlight[]>([]);
   const [resume, setResume] = useState(() => shouldShowResume(db.getLastReadAt(), Date.now()));
@@ -287,11 +289,24 @@ function Reader() {
   const openBook = useCallback(
     (id: string) => {
       setShelf(false);
+      setMarket(false);
       if (id === bookRef.current) return;
       db.setCurrentBookId(id);
       setCurrentId(id);
     },
     [],
+  );
+
+  // The catalogue: the library's way to find more books, and the empty app's too.
+  const openMarket = useCallback(() => setMarket(true), []);
+  const marketScreen = (
+    <Marketplace
+      visible={market}
+      palette={palette}
+      onOpen={openBook}
+      onShelved={refreshBooks}
+      onClose={() => setMarket(false)}
+    />
   );
 
   const doImport = useCallback(async () => {
@@ -368,7 +383,11 @@ function Reader() {
               </Text>
             ) : null}
           </Pressable>
+          <Pressable onPress={openMarket} style={styles.findLink} accessibilityRole="button" accessibilityLabel="Find books">
+            <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} style={[styles.firstCopy, { color: palette.accent }]}>Or find one in the catalogue</Text>
+          </Pressable>
         </View>
+        {marketScreen}
       </View>
     );
   }
@@ -489,9 +508,11 @@ function Reader() {
         notice={notice}
         secondsToday={days[today] ?? 0}
         onOpen={openBook}
+        onFind={openMarket}
         onImport={doImport}
         onClose={() => setShelf(false)}
       />
+      {marketScreen}
       <ResumeCard
         visible={resume && !shelf}
         palette={palette}
@@ -533,4 +554,5 @@ const styles = StyleSheet.create({
   primary: { minHeight: 58, borderRadius: 6, alignItems: 'center', justifyContent: 'center', gap: 1, marginTop: 12 },
   primaryText: { fontFamily: FONTS.uiStrong, fontSize: 15 },
   primaryHint: { fontFamily: FONTS.ui, fontSize: 12, opacity: 0.85 },
+  findLink: { minHeight: TAP, justifyContent: 'center' },
 });
