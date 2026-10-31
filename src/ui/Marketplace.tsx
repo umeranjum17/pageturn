@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   StyleSheet,
@@ -14,7 +15,8 @@ import {
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { downloadCatalogueBook } from '../catalog/download';
+import { SOURCE as ARCHIVE, hitOf, searchArchive, type Hit } from '../catalog/archive';
+import { deviceShelf, downloadCatalogueBook, shelve } from '../catalog/download';
 import type { CatalogueEntry } from '../catalog/opds';
 import { SOURCE, bookPage, feed, listUrl, searchUrl, type SortOrder } from '../catalog/source';
 import * as db from '../db';
@@ -50,7 +52,7 @@ interface CardState {
 }
 
 interface Loaded {
-  entries: CatalogueEntry[];
+  entries: Hit[];
   failed: boolean;
 }
 
@@ -97,7 +99,7 @@ function loadCover(id: string): Promise<string | null> {
 }
 
 interface CardProps {
-  entry: CatalogueEntry;
+  entry: Hit;
   palette: Palette;
   width: number;
   state: CardState;
@@ -107,24 +109,27 @@ interface CardProps {
 function BookCard({ entry, palette, width, state, onPress }: CardProps) {
   const [cover, setCover] = useState<string | null>(null);
   const [shelved, setShelved] = useState(false);
-
+  const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    setShelved(db.findBookBySource(SOURCE, entry.id) !== null);
+    setShelved(db.findBookBySource(entry.torrent ? ARCHIVE : SOURCE, entry.id) !== null);
     loadCover(entry.id).then((uri) => {
       if (live && uri) setCover(uri);
     });
     return () => {
       live = false;
     };
-  }, [entry.id]);
+  }, [entry.id, entry.torrent]);
+
+  // The phone's own torrent client takes it, or the link is printed to copy.
+  const openTorrent = () => Linking.openURL(entry.torrent!).catch(() => setNotice(`No torrent app. Copy this link: ${entry.torrent}`));
 
   const onShelf = state.shelf || shelved;
   const line = state.failed ? FAILED_DOWNLOAD : state.busy ? 'Downloading…' : onShelf ? 'On your shelf · tap to open' : null;
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={entry.torrent && !entry.book ? openTorrent : onPress}
       disabled={state.busy}
       style={({ pressed }) => [{ width, opacity: pressed ? 0.7 : 1 }]}
       accessibilityRole="button"
@@ -134,7 +139,7 @@ function BookCard({ entry, palette, width, state, onPress }: CardProps) {
       {/* The designed cover is drawn at once; the picture drops in on top of it. */}
       <View style={{ width, height: width * 1.5 }}>
         <Cover title={entry.title} author={entry.author} palette={palette} width={width} />
-        {cover ? <Image source={{ uri: cover }} style={styles.coverImage} accessibilityIgnoresInvertColors /> : null}
+        {cover ?? entry.cover ? <Image source={{ uri: (cover ?? entry.cover)! }} style={styles.coverImage} accessibilityIgnoresInvertColors /> : null}
       </View>
       <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} numberOfLines={2} style={[styles.cardTitle, { color: palette.prose }]}>
         {entry.title}
@@ -148,6 +153,9 @@ function BookCard({ entry, palette, width, state, onPress }: CardProps) {
         <Text maxFontSizeMultiplier={TEXT_SCALE_MAX} numberOfLines={2} style={[styles.cardSmall, { color: state.failed ? palette.prose : palette.accent }]}>
           {line}
         </Text>
+      ) : null}
+      {entry.licence || entry.torrent ? (
+        <Pressable onPress={entry.torrent ? openTorrent : undefined} hitSlop={10} accessibilityRole={entry.torrent ? 'link' : 'text'} accessibilityLabel={entry.torrent ? `Torrent for ${entry.title}` : undefined}><Text selectable maxFontSizeMultiplier={TEXT_SCALE_MAX} numberOfLines={2} style={[styles.cardSmall, { color: palette.accent }]}>{notice ?? [entry.licence, entry.torrent && 'Torrent'].filter(Boolean).join(' · ')}</Text></Pressable>
       ) : null}
     </Pressable>
   );
@@ -202,11 +210,14 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
     const timer = setTimeout(() => {
       feed(searchUrl(term))
         .then((got) => {
-          if (live) setResults({ entries: got.entries, failed: false });
+          if (live) setResults((was) => ({ entries: [...got.entries, ...(was?.entries ?? [])], failed: false }));
         })
         .catch(() => {
           if (live) setResults({ entries: [], failed: true });
         });
+      searchArchive(term).then((found) => {
+        if (live && found.hits.length) setResults((was) => ({ entries: [...(was?.entries ?? []), ...found.hits.map(hitOf)], failed: false }));
+      });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       live = false;
@@ -215,8 +226,8 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
   }, [term]);
 
   const tap = useCallback(
-    async (entry: CatalogueEntry) => {
-      const known = db.findBookBySource(SOURCE, entry.id);
+    async (entry: Hit) => {
+      const known = db.findBookBySource(entry.torrent ? ARCHIVE : SOURCE, entry.id);
       if (known) {
         onOpen(known);
         return;
@@ -224,7 +235,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
       if (cards[entry.id]?.busy) return;
       setCards((c) => ({ ...c, [entry.id]: { busy: true } }));
       try {
-        await downloadCatalogueBook(entry.id);
+        await (entry.book ? shelve(entry.book, await deviceShelf()) : downloadCatalogueBook(entry.id));
         setCards((c) => ({ ...c, [entry.id]: { shelf: true } }));
         onShelved();
       } catch {
@@ -234,7 +245,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
     [cards, onOpen, onShelved],
   );
 
-  const card = (entry: CatalogueEntry) => (
+  const card = (entry: Hit) => (
     <BookCard entry={entry} palette={palette} width={cardWidth} state={cards[entry.id] ?? {}} onPress={() => tap(entry)} />
   );
   const muted = [styles.small, { color: palette.secondary }];
@@ -278,7 +289,7 @@ export default function Marketplace({ visible, palette, onOpen, onShelved, onClo
                 {results?.failed
                   ? 'That search did not finish. Try again in a moment.'
                   : results
-                    ? 'No books matched that word.'
+                    ? 'No openly licensed books matched that word.'
                     : 'Searching…'}
               </Text>
             }
