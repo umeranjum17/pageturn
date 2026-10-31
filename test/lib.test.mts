@@ -125,7 +125,7 @@ test('next up falls to the newest unopened book, then to the shortest', () => {
   assert.equal(nextUp([]), null);
 });
 
-test('next up skips the first shelf row, and says started only for an opened book', () => {
+test('next up skips the first shelf row, and claims only progress it can show', () => {
   // Real rows in the order listBooks() returns them: COALESCE(opened_at, added_at)
   // DESC puts the newest or most recently opened book in the row under the card.
   const shelf = [
@@ -138,13 +138,14 @@ test('next up skips the first shelf row, and says started only for an opened boo
   assert.equal(up?.book.id, 'middlemarch');
   assert.equal(up?.reason, 'You are 37 percent in');
 
-  // Opened, no page turned yet: the one book that has earned the started line.
+  // Opened, no page turned yet: nothing read, so nothing to claim.
   const opened = nextUp([shelf[0], shelf[2]]);
   assert.equal(opened?.book.id, 'kidnapped');
-  assert.equal(opened?.reason, 'You started this one');
+  assert.equal(opened?.reason, 'Not started yet');
 
-  // Opened and the reader stored a zero: the card says the stored number.
-  assert.equal(nextUp([shelf[0], book({ id: 'moby', openedAt: 200, percent: 0 })])?.reason, 'You are 0 percent in');
+  // Opened and the reader stored a zero, or a sliver that rounds to zero.
+  assert.equal(nextUp([shelf[0], book({ id: 'moby', openedAt: 200, percent: 0 })])?.reason, 'Not started yet');
+  assert.equal(nextUp([shelf[0], book({ id: 'emma', openedAt: 200, percent: 0.004 })])?.reason, 'Not started yet');
 
   // Never opened: a short one, or plainly not started - never 'started this one'.
   const fresh = nextUp([shelf[0], book({ id: 'kidnapped', addedAt: 60, pages: 120 })]);
