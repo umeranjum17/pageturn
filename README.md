@@ -25,9 +25,10 @@ Kindle show up in the book they belong to.
   invert that keeps print readable instead of flooding the room.
 - **A shelf you can fill.** Books come from the public-domain catalogue instead
   of a store: whole, free to read, downloaded with their covers and their
-  catalogue page remembered. That download is the only request the app makes.
-  One row above the shelf names the book to read next with the reason, in plain
-  words: the one you left unfinished, else the newest unopened, else the shortest.
+  catalogue page remembered. The catalogue is the only place the app fetches
+  from: no store, no account, nothing else. One row above the shelf names the
+  book to read next with the reason, in plain words: the one you left
+  unfinished, else the newest unopened, else the shortest.
 - **Private.** Your shelf, your place and your highlights stay on the phone in
   SQLite. No account, no backend, no telemetry.
 
