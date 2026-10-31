@@ -32,7 +32,10 @@ const SHORT_PAGES = 150;
 /** Why this book, said only from what its own row records. */
 function reasonFor(b: Book): string {
   if (b.openedAt === null) return lengthOf(b) <= SHORT_PAGES ? 'A short one to start' : 'Not started yet';
-  return b.percent == null ? 'You started this one' : `You are ${percentIn(b)} percent in`;
+  // Opened but nothing read yet - no percent stored, or a sliver that rounds to
+  // zero - has no progress to claim, so it says so instead of '0 percent in'.
+  const percent = percentIn(b);
+  return percent > 0 ? `You are ${percent} percent in` : 'Not started yet';
 }
 
 /**
